@@ -22,51 +22,74 @@ command set, same model envelopes, same quirks list, no Python needed.
 ┌──────────────────────────────────────────────────────────────┐
 │ nanoVNA Web      [Connect] [Demo]  Model ▾   ● status         │
 ├────────────┬─────────────────────────────────────────────────┤
-│ Sweep      │  |S11| |S21| SWR Phase Smith Waterfall  Hold Clr│
+│ Sweep      │  |S11| |S21| SWR Phase Smith Waterfall CW  Hold │
 │  start/stop│                                                 │
 │  points    │                    plot                         │
-│  [Single]  │                                                 │
+│  [Single]  │              (or the CW meter)                  │
 │  [Contin.] │                                                 │
 │ ────────── │                                                 │
-│ Markers    ├─────────────────────────────────────────────────┤
-│  table     │  markers table                                  │
+│ Calibration├─────────────────────────────────────────────────┤
+│ ────────── │  Markers  [min SWR] [peak] [send to device]     │
+│ Export     │  # freq |S11| SWR R X |S21| phase               │
 │ ────────── ├─────────────────────────────────────────────────┤
-│ Export     │  Console ▲ (drag to resize)        [clear] [⤓]  │
-│ ────────── │  > version                                      │
-│ Diagnostics│  NanoVNA-F_V3 v1.0.6                            │
-│ ────────── │  > scan 50000000 1500000000 801 7               │
-│ Settings   │  … 801 lines (1273 ms)                          │
-│  theme     │  ┌──────────────────────────────────┐ [Send]    │
-│  palette   │  │ type a command                   │           │
+│ Session &  │  Console ▲ (drag to resize)   Log ▾ [⤓][copy]   │
+│  compare   │  > version                                      │
+│ ────────── │  NanoVNA-F_V3 v1.0.6                            │
+│ Diagnostics│  > scan 50000000 1500000000 801 7               │
+│ ────────── │  … 801 lines (1273 ms)                          │
+│ Device     │  ┌──────────────────────────────────┐ [Send]    │
+│  tools     │  │ type a command                   │           │
+│ ────────── │                                                 │
+│ Settings   │                                                 │
 └────────────┴─────────────────────────────────────────────────┘
 ```
 
-The sidebar is an accordion — one section open at a time, remembered between
-visits. The markers table lives in the Markers section rather than under the
-plot. On narrow screens the sidebar stacks above the plot.
+The sidebar is an accordion — click a header to open it, click again to
+collapse; the choice is remembered. The markers table sits between the plot and
+the console so it has the full width. On narrow screens the sidebar stacks
+above the plot.
 
-## What it does (v0.2)
+## What it does (v0.3)
 
 - **Sweep** — start/stop in MHz, points by model maximum / quick / custom,
   single or continuous.
 - **Views** — |S11| dB, |S21| dB, SWR, S11 phase, Smith chart, waterfall
   (rolling |S11| history). *Hold* keeps a trace for comparison.
 - **Markers** — click to place up to six; each shows frequency, |S11|, SWR,
-  R, X and |S21|. *Mark minimum SWR* finds the best match in the sweep.
+  R, X, |S21| and phase. *Mark minimum SWR* and *Mark |S11| peak* find them
+  for you; *Send to device* writes the first four to the instrument's own
+  markers (`marker N idx`).
+- **Calibration** — step-through SOLT on the device (`cal open/short/load/
+  thru/done`), on/off, reset, save/recall slots, and electrical delay
+  (`edelay`). A badge in the top bar shows whether data is corrected.
+- **Device readback** — *Use device sweep* copies the instrument's own
+  start/stop/points into the page (`sweep`); *Read device data* shows what's
+  on its screen without starting a new scan (`frequencies`, `data 0/1`).
+- **CW meter** — one frequency, big-number readout of |S11|, SWR, R + jX and
+  |S21| updating continuously (`cwfreq` on the device, tiny `scan` for the
+  numbers). For trimming an antenna while watching one value.
+- **Beep** — the device buzzer (`beep on/off`) after each sweep and/or when
+  minimum SWR drops below a threshold you set. Optional browser tone too.
 - **Export** — CSV with derived columns, `.s1p`, `.s2p`, plot PNG, and a
   screenshot of the device's own screen.
 - **Diagnostics** — one button runs a fixed set of commands, records raw
   replies and timings, and downloads a JSON to attach to an issue. This is
   how the page gets validated against hardware it hasn't seen yet.
 - **Console** — the raw serial exchange with a resizable drawer, command
-  history (↑ ↓), long replies collapsed, copy button.
+  history (↑ ↓), long replies collapsed, copy button, and a log download
+  (commands only, or commands + replies, timestamped).
+- **Session & compare** — save/load the whole page state as JSON; load a
+  `.s1p`/`.s2p` as a dotted overlay under the live trace.
+- **Device tools** — touch calibration, touch test, resolution readback.
 - **Settings** — dark (default) or light theme; trace colours as the
   instrument convention (S11 yellow, S21 cyan) or blue/amber; waterfall
   palette (Viridis, Inferno, Turbo, Classic SDR, Grey) and colour floor;
-  reference impedance Z₀ (default 50 Ω); raw-byte echo for debugging framing.
-  All remembered in the browser.
+  reference impedance Z₀ (default 50 Ω); beep rules; device screen
+  brightness (`pwm`); mirror the page view onto device trace 0 (`trace 0 …`);
+  overlay on/off; raw-byte echo for debugging framing. All remembered in the
+  browser.
 
-Not yet: calibration from the page (planned), group delay, TDR.
+Not yet: group delay, TDR (planned as its own release).
 
 ## Supported hardware
 
@@ -101,6 +124,7 @@ js/
     rect.js  smith.js  waterfall.js  palettes.js  common.js
   ui/
     sidebar.js  console.js  settings.js  diagnostics.js  export.js
+    calibration.js  cw.js  session.js  devicetools.js
 ```
 
 `js/device/` is the part another tool would reuse: `main.js` calls

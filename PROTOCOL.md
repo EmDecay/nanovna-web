@@ -42,6 +42,17 @@ one command known not to answer with a prompt (see *Quirks*).
 | `frequencies` | one frequency per line | Diagnostics only |
 | `data 0` / `data 1` | `re im` per line for S11 / S21 of the device's current sweep | Diagnostics only |
 | `capture` | binary: width × height × 2 bytes, RGB565 | *Device screenshot* button |
+| `cal open` / `short` / `load` / `thru` / `done` / `reset` / `on` / `off` | — | Calibration section |
+| `save N` (0–4) | **no prompt** on the F V2 — echo only | Calibration → Save (sent via `commandNoPrompt`) |
+| `recall N` (0–6) | — | Calibration → Recall |
+| `edelay [value]` | current value when no argument | Calibration → electrical delay; value passed through unchanged |
+| `cwfreq <kHz>` | — | CW meter: puts the device's own screen at that frequency. The page's readings come from an 11-point `scan` over 1 kHz, averaged |
+| `marker N <idx>` / `marker N off` | — | Markers → Send to device (first four) |
+| `trace 0 <fmt>` | — | Settings → mirror view (`logmag`, `swr`, `phase`, `smith`) |
+| `beep on` / `beep off` | — | Beep rules in Settings; the page sends on, waits, off (`beepFor`) |
+| `pwm <0.0–1.0>` | — | Settings → screen brightness; also sent on connect if below 1 |
+| `resolution` | `W,H` | Device tools |
+| `touchcal` / `touchtest` | runs on the device screen | Device tools |
 
 Outmask bits for `scan`: 1 = frequency, 2 = S11, 4 = S21. The page always uses
 7 so one command fetches everything; the diagnostics sample also runs outmask 3
@@ -91,6 +102,11 @@ things to check with a real unit, in the order they'd break:
 - Real sweep time at full points, which decides whether *Continuous* needs
   a throttle.
 - Whether `pause` is needed at all for `scan` to return clean data.
+- `edelay` units and reply format (the page shows the reply as-is).
+- Whether `marker N idx` and `trace 0 fmt` take effect while the sweep is
+  paused, and the exact format names the F V3 accepts.
+- `beep on`/`off` latency — the page holds it 60–150 ms.
+- Whether `cwfreq` disturbs a subsequent `scan`.
 
 The **Collect diagnostic sample** button on the page records the raw bytes and
 timings for all of these in one JSON file.
