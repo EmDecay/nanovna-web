@@ -16,6 +16,66 @@ This is the browser companion to the
 [nanoVNA_python](https://github.com/LC-Linkous/nanoVNA_python) library: same
 command set, same model envelopes, same quirks list, no Python needed.
 
+## How it fits together
+
+The NanoVNA exposes a text console over USB (`ch>` prompt, one command per
+line). Both tools speak that console; they differ only in what is on the other
+end of the cable.
+
+```
+                           NanoVNA-F V2 / V3
+                     ┌──────────────────────────┐
+                     │  console over USB CDC    │
+                     │  ch> scan 50000 3e9 801  │
+                     │  ch> cal open · data 0 … │
+                     └────────────┬─────────────┘
+                                  │  same bytes, same commands
+                ┌─────────────────┴─────────────────┐
+                │                                   │
+        Chrome / Edge                           Python
+   ┌────────────────────────┐          ┌────────────────────────┐
+   │ nanoVNA Web            │          │ nanoVNA_python         │
+   │                        │          │                        │
+   │ Web Serial API         │          │ pyserial               │
+   │   ▼                    │          │   ▼                    │
+   │ js/device/             │  mirrors │ nvnapython/            │
+   │   shell-link.js  ─ ─ ─ ┼ ─ ─ ─ ─ ─┼ ─  serial framing      │
+   │   nanovna.js     ─ ─ ─ ┼ ─ ─ ─ ─ ─┼ ─  NanoVNA class       │
+   │   models.js      ─ ─ ─ ┼ ─ ─ ─ ─ ─┼ ─  constants.py        │
+   │   ▼                    │          │   ▼                    │
+   │ js/plot/  js/ui/       │          │ your script, numpy,    │
+   │ live plots, markers,   │          │ matplotlib, automation │
+   │ calibration, recording │          │                        │
+   └───────────┬────────────┘          └───────────┬────────────┘
+               │                                   │
+               │   .csv  .s1p / .s2p  .json        │
+               └──────────────► ◄──────────────────┘
+                     files move between the two
+```
+
+Reading it top to bottom:
+
+- **The device doesn't know which one it's talking to.** `scan`, `cal`,
+  `marker`, `cwfreq` and the rest are sent as the same strings with the same
+  framing rules (echo stripped, doubled `ch> ` prompt tolerated, trailing
+  space on scan lines, no error signalling). Anything learned about the
+  protocol on one side goes into the other; `PROTOCOL.md` here and the
+  library's notes are kept in step.
+- **`js/device/` is a port of the library's device layer**, method for
+  method: `vna.scan(start, stop, pts)` in JavaScript returns the same arrays
+  as the Python call, and `models.js` carries the same frequency and point
+  envelopes as `constants.py`. If you have read one, you have read the other.
+- **Above that layer they diverge on purpose.** The page is for the bench:
+  look at the trace, trim the antenna, sweep continuously, record. The library
+  is for scripts: batch sweeps, fixtures, anything that needs numpy.
+- **Files are the hand-off.** Export CSV / Touchstone / a recording from the
+  page, open it in Python; or load a `.s1p` the library produced as an overlay
+  under the live trace. The waterfall matrix CSV is the browser-side twin of
+  the library's `plotting_waterfall_static.py` input.
+
+Only one of the two can hold the serial port at a time; close the page's
+connection (or the Python script) before starting the other.
+
 ## Layout
 
 ```
