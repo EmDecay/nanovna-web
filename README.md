@@ -63,7 +63,9 @@ above the plot.
   stay page-only. A rejection by the device is shown on the markers row.
 - **Calibration** — step-through SOLT on the device (`cal open/short/load/
   thru/done`), on/off, reset, save/recall slots, and electrical delay
-  (`edelay`). A badge in the top bar shows whether data is corrected.
+  (`edelay`). Calibration lives on the device; the page sends the commands.
+  Run a page sweep first so the device is on the range you'll measure with.
+  A badge in the top bar shows what the page last sent.
 - **Device readback** — *Use device sweep* copies the instrument's own
   start/stop/points into the page (`sweep`); *Read device data* shows what's
   on its screen without starting a new scan (`frequencies`, `data 0/1`).

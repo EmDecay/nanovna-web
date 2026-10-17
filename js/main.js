@@ -20,7 +20,7 @@ import { initCw } from './ui/cw.js';
 import { sessionBlob, parseSession, parseTouchstone, pickFile } from './ui/session.js';
 import { initDeviceTools } from './ui/devicetools.js';
 
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.3';
 const $ = id => document.getElementById(id);
 const VIEW_TO_TRACE = { s11db: 'logmag', s21db: 'logmag', swr: 'swr', phase: 'phase', smith: 'smith', waterfall: 'logmag' };
 
@@ -36,7 +36,13 @@ const chart = { dirty: true, hover: null, geom: null };
 applyTheme();
 const sidebar = initSidebar($('sidebar'));
 const con = initConsole({ log: $('log'), form: $('sendForm'), input: $('sendInput'), handle: $('conHandle'), drawer: $('console'), clearBtn: $('conClear'), copyBtn: $('conCopy'), dlBtn: $('conDl'), dlMode: $('conDlMode') }, sendManual);
-const cal = initCalibration($('calSection'), () => state.vna, con);
+const cal = initCalibration($('calSection'), () => state.vna, con, {
+  // runs before every cal step: the device must be sweeping to measure a standard
+  async beforeStep(vna) { if (vna.paused) { await vna.resume(); setFreezeUi(false); con.dim('resumed the device sweep for calibration'); } },
+  async currentSweep(vna) { try { const sw = await vna.sweep(); return `${fmtHz(sw.start)} – ${fmtHz(sw.stop)}, ${sw.pts} pts`; } catch { return 'unknown'; } },
+});
+function setFreezeUi(frozen) { const b = $('freezeBtn'); b.setAttribute('aria-pressed', String(frozen)); b.textContent = frozen ? 'Device frozen — click to resume' : 'Freeze device screen'; b.classList.toggle('running', frozen); }
+$('freezeBtn').addEventListener('click', async () => { const v = state.vna; if (!v || state.busy) return; try { if (v.paused) await v.resume(); else await v.pause(); setFreezeUi(v.paused); } catch (e) { con.err(e.message); } });
 const cw = initCw($('cwPanel'), () => state.vna, () => settings.z0, con);
 const tools = initDeviceTools($('toolsSection'), () => state.vna, con);
 
@@ -51,7 +57,7 @@ function applyModel(key) {
 }
 function currentModel() { return state.vna ? state.vna.model : ($('modelSel').value === 'auto' ? DEFAULT_MODEL : $('modelSel').value); }
 function setEnabled(on) {
-  ['singleBtn', 'contBtn', 'diagBtn', 'shotBtn', 'devSweepBtn', 'devDataBtn', 'sessSave', 'syncMarkersBtn'].forEach(id => $(id).disabled = !on);
+  ['singleBtn', 'contBtn', 'diagBtn', 'shotBtn', 'devSweepBtn', 'devDataBtn', 'sessSave', 'syncMarkersBtn', 'freezeBtn'].forEach(id => $(id).disabled = !on);
   con.setEnabled(on); cal.setEnabled(on); cw.setEnabled(on); tools.setEnabled(on);
   $('demoBtn').disabled = on && !state.demo;
   $('demoBtn').classList.toggle('demo-active', on && state.demo); $('demoBtn').setAttribute('aria-pressed', String(on && state.demo));
@@ -78,7 +84,8 @@ async function connect(demo) {
     await vna.identify(override);
     state.vna = vna; state.demo = demo; cal.reset();
     applyModel(vna.model);
-    await vna.pause().catch(() => {});
+    // Not pausing: the first hardware session showed `scan` works fine while the device sweeps,
+    // and a paused device can't measure calibration standards. Freeze is a toggle instead.
     if (settings.brightness < 1) await vna.pwm(settings.brightness).catch(() => {});
     setStatus(`${demo ? 'Demo' : 'Connected'} · ${vna.ident.label} · as ${vna.env.name}`, demo ? 'demo' : 'ok');
     if (vna.deviceSweep) { $('devWas').textContent = `${fmtHz(vna.deviceSweep.start)} – ${fmtHz(vna.deviceSweep.stop)}, ${vna.deviceSweep.pts} pts (restored on disconnect)`; }
@@ -91,7 +98,8 @@ async function connect(demo) {
 async function disconnect(silent) {
   if (!state.vna) return;
   const vna = state.vna; stopContinuous(); cw.stop();
-  try { if (!silent) { await vna.restoreDeviceSweep(); await vna.resume(); } } catch {}
+  try { if (!silent) { await vna.restoreDeviceSweep(); if (vna.paused) await vna.resume(); } } catch {}
+  setFreezeUi(false);
   await vna.link.close(); state.vna = null; state.demo = false; $('devWas').textContent = '—';
   setEnabled(false); setStatus('Not connected', ''); chart.dirty = true;
 }

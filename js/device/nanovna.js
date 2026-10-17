@@ -19,7 +19,7 @@ export class NanoVNA {
     this.link = link;
     this.model = DEFAULT_MODEL;
     this.ident = { version: '', info: '', modelName: '', label: '' };
-    this.cwUnit = 1e3; this.deviceSweep = null;
+    this.cwUnit = 1e3; this.deviceSweep = null; this.paused = false; this.sweepChanged = false;
   }
   get env() { return MODELS[this.model]; }
 
@@ -48,14 +48,15 @@ export class NanoVNA {
     return this.ident;
   }
   /** Put the device back on the sweep it had when we connected. */
-  async restoreDeviceSweep() { const d = this.deviceSweep; if (d && Number.isFinite(d.start) && Number.isFinite(d.stop) && d.pts) await this.sweep(d.start, d.stop, d.pts); }
+  async restoreDeviceSweep() { const d = this.deviceSweep; if (this.sweepChanged && d && Number.isFinite(d.start) && Number.isFinite(d.stop) && d.pts) { await this.sweep(d.start, d.stop, d.pts); this.sweepChanged = false; } }
 
   // ---- sweep control -----------------------------------------------------
-  async pause()  { return this.link.command('pause',  { timeoutMs: 2000 }); }
-  async resume() { return this.link.command('resume', { timeoutMs: 2000 }); }
+  async pause()  { const r = await this.link.command('pause',  { timeoutMs: 2000 }); this.paused = true; return r; }
+  async resume() { const r = await this.link.command('resume', { timeoutMs: 2000 }); this.paused = false; return r; }
   /** Read or set the device's own sweep: sweep() -> {start, stop, pts}; sweep(a,b,n) sets. */
   async sweep(start, stop, pts) {
     if (start == null) { const b = (await this.link.command('sweep')).body.trim().split(/\s+/).map(Number); return { start: b[0], stop: b[1], pts: b[2] }; }
+    this.sweepChanged = true;
     return this.link.command(`sweep ${Math.round(start)} ${Math.round(stop)}${pts ? ' ' + pts : ''}`);
   }
   async frequencies() { return (await this.link.command('frequencies')).body.split('\n').map(Number).filter(Number.isFinite); }
@@ -81,6 +82,7 @@ export class NanoVNA {
     if (!(start < stop)) stop = Math.min(m.maxHz, start + 1e6);
     pts = Math.min(Math.max(Math.round(pts), m.minPts), m.maxPts);
     const cmd = `scan ${start} ${stop} ${pts} 7`;
+    this.sweepChanged = true;
     let last = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
       const r = await this.link.command(cmd, { timeoutMs: 8000 + pts * 25, quiet });

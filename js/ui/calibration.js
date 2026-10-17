@@ -9,14 +9,14 @@ const STEPS = [
   { key: 'thru',  label: 'Thru',  prompt: 'Connect port 1 to port 2 with the THRU, then click. Skip for S11-only work.' },
 ];
 
-export function initCalibration(root, getVna, con) {
+export function initCalibration(root, getVna, con, hooks = {}) {
   const badge = root.querySelector('#calBadge'), prompt = root.querySelector('#calPrompt');
   const stepBtns = Object.fromEntries(STEPS.map(s => [s.key, root.querySelector(`[data-cal="${s.key}"]`)]));
   const done = {};
   const state = { on: null };       // null = unknown until the page sends something
 
   function setBadge() {
-    badge.textContent = state.on === null ? 'cal: unknown' : state.on ? 'cal: ON (corrected)' : 'cal: OFF (raw)';
+    badge.textContent = state.on === null ? 'cal: unknown' : state.on ? 'cal: ON (sent by page)' : 'cal: OFF (sent by page)';
     badge.className = 'badge ' + (state.on === null ? '' : state.on ? 'ok' : 'warn');
   }
   function setEnabled(on) { root.querySelectorAll('button, input, select').forEach(e => e.disabled = !on); }
@@ -27,8 +27,12 @@ export function initCalibration(root, getVna, con) {
     finally { setEnabled(true); }
   }
 
+  const rangeEl = root.querySelector('#calRange');
+  async function showRange(vna) { if (hooks.currentSweep && rangeEl) rangeEl.textContent = 'Calibrating on the device sweep: ' + await hooks.currentSweep(vna) + '. Measure with the same range and point count.'; }
   for (const s of STEPS) {
     stepBtns[s.key].addEventListener('click', () => run(async vna => {
+      if (hooks.beforeStep) await hooks.beforeStep(vna);
+      if (!done.open && !done.short && !done.load && !done.thru) await showRange(vna);
       prompt.textContent = `Measuring ${s.label}…`;
       await vna.cal(s.key); done[s.key] = true; stepBtns[s.key].classList.add('done');
       const next = STEPS.find(x => !done[x.key]);
@@ -36,6 +40,7 @@ export function initCalibration(root, getVna, con) {
     }, `cal ${s.key}`));
   }
   root.querySelector('[data-cal="done"]').addEventListener('click', () => run(async vna => {
+    if (hooks.beforeStep) await hooks.beforeStep(vna);
     await vna.cal('done'); state.on = true; setBadge(); prompt.textContent = 'Calibration applied. Save it to a slot to keep it after power-off.';
   }, 'cal done'));
   root.querySelector('[data-cal="reset"]').addEventListener('click', () => run(async vna => {

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.3 — don't freeze the device
+
+- The page no longer sends `pause` at connect. The first hardware session
+  showed `scan` works while the device sweeps, and a paused device cannot
+  measure calibration standards (the probable cause of a bad SOLT and a
+  shifted resonance). *Freeze device screen* is now a toggle in the top bar.
+- Calibration: each step first resumes the device if frozen, the section
+  shows which device sweep the calibration is being captured on, and the
+  guidance says to run a page sweep first so ranges match. Badge wording is
+  "sent by page" — the page cannot read the device's cal state.
+- The device sweep is restored on disconnect only if the page changed it.
+
 ## v0.3.2 — first hardware session (NanoVNA-F V3, fw 0.5.8)
 
 - `cwfreq` unit is read from the device's `help` text (Hz on the F V3; the

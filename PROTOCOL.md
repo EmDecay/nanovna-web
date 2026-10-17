@@ -35,8 +35,7 @@ one command known not to answer with a prompt (see *Quirks*).
 | `info` | several lines of board/firmware text | Model detection (F V2 vs F V3); diagnostics |
 | `SN` | serial number | Diagnostics only |
 | `help` | command list | Diagnostics only |
-| `pause` | — | Sent once after connecting so the device's own sweep doesn't contend with ours (robust-loop pattern from `nvnapython`) |
-| `resume` | — | Sent on disconnect and on page close |
+| `pause` / `resume` | — | *Freeze device screen* toggle only. Not sent at connect since v0.3.3: `scan` works while the device sweeps, and calibration needs it sweeping. `resume` is sent on disconnect if the page paused it. |
 | `scan <start> <stop> <pts> 7` | `pts` lines of `freq s11re s11im s21re s21im` | **Every sweep.** Outmask 7 = frequency + S11 + S21 |
 | `sweep` | `start stop pts` | Diagnostics only (read back device sweep) |
 | `frequencies` | one frequency per line | Diagnostics only |
@@ -125,6 +124,9 @@ From the page's own diagnostic sample (Chrome/Edge on Windows):
 
 - `capture` byte order (page assumes little-endian RGB565, B/R swapped).
 - `cal …` sequence and whether `scan` output is corrected when cal is on.
+  Working assumption (edy555 lineage): standards are measured from the
+  **live** sweep, so the device must not be paused and must be on the range
+  you will measure with; `cal done` applies the correction.
 - `edelay` units and reply format.
 - `marker`/`trace` effect while paused; exact trace format names accepted.
 - `beep` latency; whether `cwfreq` disturbs a following `scan`.
