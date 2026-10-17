@@ -11,7 +11,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>nanoVNA Web</title>
-<meta name="description" content="Sweep a NanoVNA-F V2 or V3 from the browser over USB: S11/S21 traces, SWR, Smith chart, live waterfall, markers with impedance readout, CSV and Touchstone export.">
+<meta name="description" content="Sweep a NanoVNA-F V2 or V3 from the browser over USB: S11/S21 traces, SWR, Smith chart, live waterfall, markers with impedance readout, calibration, CSV and Touchstone export.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/theme.css">
@@ -23,7 +23,7 @@
 <header class="topbar">
   <h1>nanoVNA Web</h1>
   <button class="btn primary" id="connectBtn">Connect to NanoVNA</button>
-  <button class="btn" id="demoBtn">Try without hardware</button>
+  <button class="btn" id="demoBtn" aria-pressed="false">Try without hardware</button>
   <label class="row" style="gap:6px"><span class="suffix">Model</span>
     <select id="modelSel" aria-label="Model envelope">
       <option value="auto">Detect from device</option>
@@ -34,6 +34,7 @@
     </select>
   </label>
   <span class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
+  <span class="badge" id="calBadgeTop" hidden>cal: unknown</span>
   <span class="spacer"></span>
   <nav>
     <a href="https://github.com/interactive-hardware-interfacing/nanovna-web">Source</a>
@@ -65,6 +66,10 @@
           <button class="btn primary block" id="singleBtn" disabled>Single sweep</button>
           <button class="btn block" id="contBtn" disabled aria-pressed="false">Continuous</button>
         </div>
+        <div class="tools" style="margin-top:12px">
+          <button class="btn small" id="devSweepBtn" disabled title="Copy the device's own start/stop/points into these fields">Use device sweep</button>
+          <button class="btn small" id="devDataBtn" disabled title="Read what the device is showing (data 0/1) without starting a new scan">Read device data</button>
+        </div>
         <dl class="kv">
           <dt>Last sweep</dt><dd id="sweepTime">—</dd>
           <dt>Device range</dt><dd id="devRange">—</dd>
@@ -72,21 +77,30 @@
       </div>
     </section>
 
-    <section data-section="markers">
-      <h2><button type="button" aria-expanded="false">Markers</button></h2>
+    <section data-section="calibration" id="calSection">
+      <h2><button type="button" aria-expanded="false">Calibration</button></h2>
       <div class="body">
-        <p class="hint" style="margin:0 0 8px">Click the plot to place a marker (up to 6).</p>
-        <div class="tools">
-          <button class="btn small" id="minSwrBtn" disabled>Mark minimum SWR</button>
-          <button class="btn small" id="clearMarkersBtn" disabled>Clear</button>
+        <p style="margin:0 0 8px"><span class="badge" id="calBadge">cal: unknown</span></p>
+        <p class="hint" id="calPrompt" style="margin:0 0 10px"></p>
+        <div class="cal-steps">
+          <button class="btn small" data-cal="open">Open</button>
+          <button class="btn small" data-cal="short">Short</button>
+          <button class="btn small" data-cal="load">Load</button>
+          <button class="btn small" data-cal="thru">Thru</button>
         </div>
-        <div class="markers-wrap" style="margin-top:10px">
-          <table class="markers" id="markerTable">
-            <thead><tr><th>#</th><th>Frequency</th><th>|S11|</th><th>SWR</th><th>R</th><th>X</th><th>|S21|</th><th></th></tr></thead>
-            <tbody id="markerBody"></tbody>
-          </table>
-          <p class="hint" id="markerEmpty">No markers yet.</p>
+        <div class="tools" style="margin-top:8px">
+          <button class="btn small primary" data-cal="done">Done — apply</button>
+          <button class="btn small" data-cal="reset">Reset</button>
+          <button class="btn small" data-cal="on">Cal on</button>
+          <button class="btn small" data-cal="off">Cal off</button>
         </div>
+        <div class="field" style="margin-top:12px"><label for="calSlot">Slot</label>
+          <div class="row"><select id="calSlot"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
+            <button class="btn small" id="calSave">Save</button><button class="btn small" id="calRecall">Recall</button></div>
+          <p class="hint">F V2 accepts save 0–4; recall 0–6.</p></div>
+        <div class="field"><label for="edelay">Electrical delay (edelay)</label>
+          <div class="row"><input type="text" id="edelay" placeholder="value as the device expects"><button class="btn small" id="edelayGet">Read</button><button class="btn small" id="edelaySet">Set</button></div>
+          <p class="hint">Port extension for a cable between the port and the DUT. Passed straight to the device.</p></div>
       </div>
     </section>
 
@@ -104,6 +118,24 @@
       </div>
     </section>
 
+    <section data-section="session">
+      <h2><button type="button" aria-expanded="false">Session &amp; compare</button></h2>
+      <div class="body">
+        <span class="label">Session</span>
+        <div class="tools">
+          <button class="btn small" id="sessSave" disabled>Save session</button>
+          <button class="btn small" id="sessLoad">Load session</button>
+        </div>
+        <p class="hint">Sweep, held trace, overlay, markers and settings as one JSON file.</p>
+        <span class="label" style="margin-top:12px">Compare</span>
+        <div class="tools">
+          <button class="btn small" id="ovlLoad">Load .s1p / .s2p overlay</button>
+          <button class="btn small" id="ovlClear" disabled>Clear overlay</button>
+        </div>
+        <p class="hint" id="ovlName">No overlay loaded. A loaded file is drawn dotted under the live trace; toggle it in Settings.</p>
+      </div>
+    </section>
+
     <section data-section="diagnostics">
       <h2><button type="button" aria-expanded="false">Diagnostics</button></h2>
       <div class="body">
@@ -113,6 +145,19 @@
           <button class="btn small" id="diagDlBtn" disabled>Download JSON</button>
         </div>
         <div class="diag-out" id="diagOut" hidden></div>
+      </div>
+    </section>
+
+    <section data-section="tools" id="toolsSection">
+      <h2><button type="button" aria-expanded="false">Device tools</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">These run on the device's own screen.</p>
+        <div class="tools">
+          <button class="btn small" id="touchCal" disabled>Touch calibration</button>
+          <button class="btn small" id="touchTest" disabled>Touch test</button>
+          <button class="btn small" id="resRead" disabled>Read resolution</button>
+        </div>
+        <p class="hint" id="toolsStatus"></p>
       </div>
     </section>
 
@@ -129,8 +174,30 @@
             <select id="wfFloor" name="wfFloor" style="width:100%"><option value="-30">0 to −30 dB</option><option value="-40">0 to −40 dB</option><option value="-60">0 to −60 dB</option><option value="-80">0 to −80 dB</option></select></div>
           <div class="field"><label for="z0">Reference impedance Z₀</label><div class="row"><input type="number" id="z0" name="z0" value="50" min="1" step="any"><span class="suffix">Ω</span></div>
             <p class="hint">Used for SWR, the Smith chart, R + jX, and the Touchstone header.</p></div>
-          <div class="field"><label class="row" style="gap:8px"><input type="checkbox" name="rawBytes"> <span>Echo raw received chunks in the console</span></label>
-            <p class="hint">For debugging framing problems. Noisy.</p></div>
+
+          <span class="label" style="margin-top:14px">Beep (device buzzer)</span>
+          <div class="stack">
+            <label class="row" style="gap:8px"><input type="checkbox" name="beepDone"> <span>After every sweep</span></label>
+            <label class="row" style="gap:8px"><input type="checkbox" name="beepSwr"> <span>When minimum SWR drops below</span> <input type="number" name="swrThreshold" value="1.5" min="1" step="0.1" style="width:70px"></label>
+            <label class="row" style="gap:8px"><input type="checkbox" name="beepBrowser"> <span>Also play a tone in the browser</span></label>
+          </div>
+          <p class="hint">The SWR beep fires once each time the threshold is crossed, so you can trim an antenna by ear.</p>
+
+          <div class="field" style="margin-top:14px"><label for="brightness">Device screen brightness</label>
+            <input type="range" id="brightness" name="brightness" min="0.05" max="1" step="0.05" style="width:100%"><p class="hint">Sent as <code>pwm</code> on change and on connect.</p></div>
+
+          <span class="label" style="margin-top:14px">Device mirroring</span>
+          <div class="stack">
+            <label class="row" style="gap:8px"><input type="checkbox" name="mirrorTrace"> <span>Set device trace 0 to match the page view</span></label>
+          </div>
+
+          <span class="label" style="margin-top:14px">Compare</span>
+          <div class="stack">
+            <label class="row" style="gap:8px"><input type="checkbox" name="overlayShow"> <span>Draw the loaded overlay</span></label>
+          </div>
+
+          <span class="label" style="margin-top:14px">Debugging</span>
+          <label class="row" style="gap:8px"><input type="checkbox" name="rawBytes"> <span>Echo raw received chunks in the console</span></label>
         </form>
       </div>
     </section>
@@ -147,6 +214,7 @@
           <button class="btn small" data-view="phase" aria-pressed="false">Phase</button>
           <button class="btn small" data-view="smith" aria-pressed="false">Smith</button>
           <button class="btn small" data-view="waterfall" aria-pressed="false">Waterfall</button>
+          <button class="btn small" data-view="cw" aria-pressed="false">CW meter</button>
         </div>
         <div class="tools">
           <button class="btn small" id="holdBtn" aria-pressed="false" title="Keep the current trace on screen for comparison">Hold</button>
@@ -154,16 +222,47 @@
         </div>
       </div>
       <div class="legend" id="legend"></div>
-      <div class="chart-wrap">
+      <div class="chart-wrap" id="chartWrap">
         <canvas id="plot" role="img" aria-label="VNA trace plot"></canvas>
         <div class="tip" id="tip"></div>
       </div>
+      <div class="cw-panel" id="cwPanel" hidden>
+        <div style="grid-column:1/-1" class="row">
+          <label for="cwFreq" class="suffix">Frequency</label><input type="number" id="cwFreq" value="433" min="0.05" step="any" style="max-width:160px"><span class="suffix">MHz</span>
+          <button class="btn primary" id="cwRun" aria-pressed="false" disabled>Start</button><span class="hint" id="cwRate"></span>
+        </div>
+        <div><div class="lbl">Frequency</div><div class="big" id="cwF" style="font-size:1.5rem;color:var(--ink)">—</div></div>
+        <div><div class="lbl">|S11|</div><div><span class="big" id="cwS11">—</span><span class="unit">dB</span></div></div>
+        <div><div class="lbl">SWR</div><div class="big" id="cwSwr">—</div></div>
+        <div><div class="lbl">Z = R + jX</div><div><span class="big z" id="cwZ">—</span><span class="unit">Ω</span></div></div>
+        <div><div class="lbl">|S21|</div><div><span class="big s21" id="cwS21">—</span><span class="unit">dB</span></div></div>
+      </div>
     </div>
+
+    <section class="markers-panel" aria-label="Markers">
+      <div class="head">
+        <h2>Markers</h2>
+        <button class="btn small" id="minSwrBtn" disabled>Mark minimum SWR</button>
+        <button class="btn small" id="peakBtn" disabled title="Highest |S11| — a resonance seen from the other side">Mark |S11| peak</button>
+        <button class="btn small" id="syncMarkersBtn" disabled title="Write the first four markers to the device's own markers">Send to device</button>
+        <button class="btn small" id="clearMarkersBtn" disabled>Clear</button>
+        <span class="hint">Click the plot to place one (up to 6).</span>
+      </div>
+      <div class="markers-wrap">
+        <table class="markers" id="markerTable">
+          <thead><tr><th>#</th><th>Frequency</th><th>|S11| dB</th><th>SWR</th><th>R Ω</th><th>X Ω</th><th>|S21| dB</th><th>Phase °</th><th></th></tr></thead>
+          <tbody id="markerBody"></tbody>
+        </table>
+        <p class="hint" id="markerEmpty">No markers yet.</p>
+      </div>
+    </section>
 
     <section class="console" id="console" aria-label="Device console">
       <div class="handle" id="conHandle" title="Drag to resize"></div>
       <div class="bar">
         <h2>Device console</h2>
+        <label>Log <select id="conDlMode"><option value="full">commands + replies</option><option value="cmd">commands only</option></select></label>
+        <button class="btn small" id="conDl" type="button">Download</button>
         <button class="btn small" id="conCopy" type="button">Copy</button>
         <button class="btn small" id="conClear" type="button">Clear</button>
       </div>
