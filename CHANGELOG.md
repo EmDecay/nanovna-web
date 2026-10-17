@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.0 — workability
+
+- Split the single file into ES modules: `js/device/` (reusable NanoVNA
+  API mirroring nvnapython), `js/plot/`, `js/ui/`, `css/`.
+- New layout: docked accordion sidebar, plot on a dark "screen" surface,
+  full-width resizable console drawer with command history and collapsed
+  long replies.
+- Own theme: dark bench-instrument default, light option.
+- Settings section: theme, trace colour scheme (instrument yellow/cyan or
+  blue/amber), waterfall palette (Viridis default, Inferno, Turbo, Classic
+  SDR, Grey), waterfall colour floor, Z₀, raw-byte echo. Persisted.
+- Markers raised to six; the table moved into the sidebar.
+- Diagnostics summary reformatted for the sidebar width.
+- Local development now needs an http server (module scripts); documented.
+
 ## v0.1.0 — first release
 
 - Web Serial driver for the NanoVNA console: `ch>` framing with doubled-prompt

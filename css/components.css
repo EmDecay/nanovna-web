@@ -1,0 +1,50 @@
+/* components.css — buttons, inputs, tables, status. */
+/* SPDX-License-Identifier: GPL-2.0-only */
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn { border: 1px solid var(--edge); background: var(--panel); color: var(--ink); border-radius: var(--radius); padding: 7px 14px; line-height: 1.2; }
+.btn:hover:not(:disabled) { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+.btn.small { padding: 4px 10px; font-size: .88rem; }
+.btn[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); border-color: var(--accent); font-weight: 700; }
+.btn.block { width: 100%; }
+
+input[type=number], input[type=text], select { padding: 6px 8px; border: 1px solid var(--edge); border-radius: var(--radius); background: var(--field); font-family: var(--mono); font-variant-numeric: tabular-nums; min-width: 0; }
+select { font-family: var(--font); }
+
+.field { margin: 10px 0; }
+.field label, .field .label { display: block; font-size: .85rem; color: var(--ink-2); margin-bottom: 4px; }
+.field label.row { display: flex; color: var(--ink); font-size: .92rem; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row input { width: 100%; }
+.row .suffix { color: var(--ink-2); font-size: .85rem; white-space: nowrap; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stack { display: flex; flex-direction: column; gap: 6px; }
+.radios label { display: flex; align-items: center; gap: 8px; font-size: .92rem; margin: 0; color: var(--ink); }
+.radios input[type=number] { width: 78px; padding: 3px 6px; }
+.hint { font-size: .82rem; color: var(--ink-3); margin: 4px 0 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: .86rem; margin: 10px 0 0; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.views { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.status { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: .9rem; }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); }
+.status.ok .dot { background: var(--ok); } .status.demo .dot { background: var(--warn); } .status.err .dot { background: var(--err); }
+
+table.markers { width: 100%; border-collapse: collapse; font-size: .84rem; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+table.markers th, table.markers td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--edge); white-space: nowrap; }
+table.markers th { color: var(--ink-2); font-weight: 500; font-family: var(--font); }
+table.markers td:first-child, table.markers th:first-child { text-align: left; }
+table.markers button { border: none; background: none; color: var(--ink-3); padding: 0 4px; }
+.markers-wrap { overflow-x: auto; }
+
+.diag-out { font-family: var(--mono); font-size: .78rem; line-height: 1.4; background: var(--screen); border: 1px solid var(--edge); border-radius: var(--radius); padding: 8px 10px; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: var(--ink-2); margin-top: 10px; }
+.palette-swatch { display: block; height: 10px; border-radius: 3px; margin-top: 6px; border: 1px solid var(--edge); }
+code { font-family: var(--mono); font-size: .9em; background: var(--screen); border: 1px solid var(--edge); padding: 0 4px; border-radius: 3px; }

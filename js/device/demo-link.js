@@ -1,0 +1,101 @@
+// demo-link.js — a simulated NanoVNA-F V3 console.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Produces the same byte stream a real device does (echo, body, doubled
+// prompt, chunked delivery) so ShellLink's parser is exercised, not bypassed.
+// If a real device does something odd, teach this class to do it too.
+import { ShellLink } from './shell-link.js';
+
+export class DemoLink extends ShellLink {
+  constructor() {
+    super();
+    this.sweepStart = 50e3; this.sweepStop = 900e6; this.sweepPts = 101;
+    this.f0 = 433e6;            // first resonance of the simulated antenna
+    this.paused = false;
+  }
+  async open() {}
+  info() { return 'demo'; }
+  async close() { this.closed = true; }
+
+  _reply(cmd, body, delay) {
+    const bytes = this.enc.encode(cmd + '\r\n' + (body ? body + '\r\n' : '') + 'ch> \r\nch> ');
+    let i = 0;
+    const step = () => { if (this.closed || i >= bytes.length) return; this._feed(bytes.slice(i, i + 512)); i += 512; setTimeout(step, 2); };
+    setTimeout(step, delay);
+  }
+
+  // Dipole-ish S11: two series resonances, plus a little series inductance.
+  s11(f) {
+    const Z0 = 50; let R = 20, X = 0;
+    for (const [f0, Rr, Q] of [[this.f0, 73, 12], [this.f0 * 2.95, 95, 9]]) {
+      const d = f / f0 - f0 / f;
+      const w = 1 / (1 + Math.pow(Math.abs(d) * Q, 2));
+      R += (Rr - 20) * w; X += Rr * Q * d * w * 1.4;
+    }
+    X += 2 * Math.PI * f * 12e-9;
+    const nre = R - Z0, nim = X, dre = R + Z0, dim = X, d2 = dre * dre + dim * dim;
+    const n = () => (Math.random() - 0.5) * 0.004;
+    return [(nre * dre + nim * dim) / d2 + n(), (nim * dre - nre * dim) / d2 + n()];
+  }
+  // Bandpass S21 centred at 868 MHz.
+  s21(f) {
+    const fc = 868e6, bw = 60e6, x = (f - fc) / (bw / 2);
+    const mag = Math.pow(10, (-1.2 - 30 * Math.log10(1 + x * x)) / 20);
+    const ph = -2 * Math.PI * f * 2.5e-9 - Math.atan(x);
+    const n = () => (Math.random() - 0.5) * 0.002;
+    return [mag * Math.cos(ph) + n(), mag * Math.sin(ph) + n()];
+  }
+
+  _write(s) {
+    const cmd = s.trim(); const [c, ...a] = cmd.split(/\s+/); const lc = (c || '').toLowerCase();
+    let body = '', delay = 8;
+    switch (lc) {
+      case 'version': body = 'NanoVNA-F_V3 v1.0.6 (demo)'; break;
+      case 'info': body = 'Board: NanoVNA-F V3 (simulated)\nFrequency range: 50 kHz - 6.3 GHz\nSweep points: 51-801\nBuild: demo'; break;
+      case 'sn': body = 'DEMO-0000-0000'; break;
+      case 'help': body = 'Commands: version info SN help sweep frequencies data scan pause resume cal save recall capture'; break;
+      case 'pause': this.paused = true; break;
+      case 'resume': this.paused = false; break;
+      case 'sweep':
+        if (a.length >= 2) { this.sweepStart = +a[0]; this.sweepStop = +a[1]; if (a[2]) this.sweepPts = +a[2]; }
+        else body = `${this.sweepStart} ${this.sweepStop} ${this.sweepPts}`;
+        break;
+      case 'frequencies': {
+        const L = []; for (let i = 0; i < this.sweepPts; i++) L.push(Math.round(this.sweepStart + (this.sweepStop - this.sweepStart) * i / (this.sweepPts - 1)));
+        body = L.join('\n'); break; }
+      case 'data': {
+        const ch = +(a[0] || 0); const L = [];
+        for (let i = 0; i < this.sweepPts; i++) { const f = this.sweepStart + (this.sweepStop - this.sweepStart) * i / (this.sweepPts - 1); const v = ch === 1 ? this.s21(f) : this.s11(f); L.push(v[0].toFixed(6) + ' ' + v[1].toFixed(6)); }
+        body = L.join('\n'); break; }
+      case 'scan': {
+        const st = +a[0], sp = +a[1], pts = +(a[2] || this.sweepPts), mask = +(a[3] || 0);
+        if (!(st < sp)) { body = 'scan: start must be < stop'; break; }
+        const L = [];
+        for (let i = 0; i < pts; i++) {
+          const f = st + (sp - st) * i / (pts - 1); const p = [];
+          if (mask & 1) p.push(Math.round(f));
+          if (mask & 2) { const v = this.s11(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); }
+          if (mask & 4) { const v = this.s21(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); }
+          if (p.length) L.push(p.join(' '));
+        }
+        body = L.join('\n'); delay = 40 + pts * 1.1; break; }
+      case 'capture': {
+        // synthetic 800x480 RGB565 frame: dark gradient with a yellow |S11| trace
+        const W = 800, H = 480, buf = new Uint8Array(W * H * 2);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const i = (y * W + x) * 2;
+          const g = this.s11(50e3 + (6e9 - 50e3) * x / W); const db = 20 * Math.log10(Math.hypot(g[0], g[1]) + 1e-9);
+          const ty = Math.round(H * 0.15 + (-db / 60) * H * 0.7), on = Math.abs(y - ty) < 2;
+          const r = on ? 31 : 2, gg = on ? 63 : (y >> 4), b = on ? 10 : 8;
+          const v = (r << 11) | (gg << 5) | b; buf[i] = v & 255; buf[i + 1] = v >> 8;
+        }
+        const head = this.enc.encode(cmd + '\r\n'), tail = this.enc.encode('ch> \r\nch> ');
+        const all = new Uint8Array(head.length + buf.length + tail.length); all.set(head); all.set(buf, head.length); all.set(tail, head.length + buf.length);
+        let i = 0; const step = () => { if (this.closed || i >= all.length) return; this._feed(all.slice(i, i + 8192)); i += 8192; setTimeout(step, 1); };
+        setTimeout(step, 20); return Promise.resolve(); }
+      default: body = `${c}?`; break;
+    }
+    this._reply(cmd, body, delay);
+    return Promise.resolve();
+  }
+}

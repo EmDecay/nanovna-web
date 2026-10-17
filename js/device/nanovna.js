@@ -1,0 +1,110 @@
+// nanovna.js — the NanoVNA API. Method names mirror the nvnapython library.
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// This is the layer another tool would reuse. Callers never see "ch>" — they
+// get strings and typed arrays. One ShellLink (serial or demo) underneath.
+import { MODELS, DEFAULT_MODEL, detectModel } from './models.js';
+import { PROMPT } from './shell-link.js';
+
+export class NanoVNA {
+  constructor(link) {
+    this.link = link;
+    this.model = DEFAULT_MODEL;
+    this.ident = { version: '', info: '' };
+  }
+  get env() { return MODELS[this.model]; }
+
+  // ---- identity / system -------------------------------------------------
+  async version() { return (await this.link.command('version', { timeoutMs: 3000 })).body.trim(); }
+  async info()    { return (await this.link.command('info',    { timeoutMs: 3000 })).body.trim(); }
+  async serialNumber() { return (await this.link.command('SN', { timeoutMs: 3000 })).body.trim(); }
+  async help()    { return (await this.link.command('help', { timeoutMs: 3000 })).body; }
+
+  /** version + info; throws if the port doesn't answer like a NanoVNA console. */
+  async identify(modelOverride) {
+    const v = await this.link.command('version', { timeoutMs: 3000 });
+    const i = await this.link.command('info', { timeoutMs: 3000 });
+    if (!v.raw.includes(PROMPT)) throw new Error('that port did not answer like a NanoVNA console');
+    this.ident = { version: v.body.trim(), info: i.body.trim() };
+    this.model = modelOverride && MODELS[modelOverride] ? modelOverride : detectModel(this.ident.version, this.ident.info);
+    return this.ident;
+  }
+
+  // ---- sweep control -----------------------------------------------------
+  async pause()  { return this.link.command('pause',  { timeoutMs: 2000 }); }
+  async resume() { return this.link.command('resume', { timeoutMs: 2000 }); }
+  /** Read or set the device's own sweep: sweep() -> {start, stop, pts}; sweep(a,b,n) sets. */
+  async sweep(start, stop, pts) {
+    if (start == null) { const b = (await this.link.command('sweep')).body.trim().split(/\s+/).map(Number); return { start: b[0], stop: b[1], pts: b[2] }; }
+    return this.link.command(`sweep ${Math.round(start)} ${Math.round(stop)}${pts ? ' ' + pts : ''}`);
+  }
+  async frequencies() { return (await this.link.command('frequencies')).body.split('\n').map(Number).filter(Number.isFinite); }
+
+  // ---- acquisition -------------------------------------------------------
+  /** data(0|1): re/im pairs of the device's current sweep. Returns Float64Array [re,im,re,im…]. */
+  async data(ch = 0) {
+    const body = (await this.link.command(`data ${ch}`)).body;
+    const out = [];
+    for (const line of body.split('\n')) { const v = line.trim().split(/\s+/).map(Number); if (v.length >= 2 && v.every(Number.isFinite)) out.push(v[0], v[1]); }
+    return Float64Array.from(out);
+  }
+
+  /**
+   * scan(start, stop, pts): one sweep with outmask 7 (freq + S11 + S21).
+   * Validates the point count; retries once; returns null if the device
+   * never produced a complete reply (the robust-acquisition-loop pattern).
+   */
+  async scan(start, stop, pts, { retries = 1 } = {}) {
+    const m = this.env;
+    start = Math.round(Math.min(Math.max(start, m.minHz), m.maxHz));
+    stop = Math.round(Math.min(Math.max(stop, m.minHz), m.maxHz));
+    if (!(start < stop)) stop = Math.min(m.maxHz, start + 1e6);
+    pts = Math.min(Math.max(Math.round(pts), m.minPts), m.maxPts);
+    const cmd = `scan ${start} ${stop} ${pts} 7`;
+    let last = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const r = await this.link.command(cmd, { timeoutMs: 15000 });
+      const parsed = NanoVNA.parseScan(r.body, pts);
+      if (parsed) return { ...parsed, pts, start, stop, t: Date.now(), ms: r.ms, cmd };
+      last = { lines: r.body.split('\n').filter(Boolean).length, expected: pts, attempt };
+    }
+    const err = new Error(`scan returned ${last.lines} usable lines, expected ${last.expected}`);
+    err.detail = last; throw err;
+  }
+  static parseScan(body, pts) {
+    const f = new Float64Array(pts), s11 = new Float64Array(pts * 2), s21 = new Float64Array(pts * 2);
+    let n = 0;
+    for (const line of body.split('\n')) {
+      const v = line.trim().split(/\s+/); if (v.length < 5 || n >= pts) continue;
+      const nums = v.map(Number); if (nums.some(x => !Number.isFinite(x))) continue;
+      f[n] = nums[0]; s11[2 * n] = nums[1]; s11[2 * n + 1] = nums[2]; s21[2 * n] = nums[3]; s21[2 * n + 1] = nums[4]; n++;
+    }
+    return n === pts ? { f, s11, s21 } : null;
+  }
+
+  // ---- calibration (device-side) ----------------------------------------
+  /** cal('open'|'short'|'load'|'thru'|'done'|'reset'|'on'|'off') */
+  async cal(action) { return this.link.command(`cal ${action}`, { timeoutMs: 8000 }); }
+  async recall(slot) { return this.link.command(`recall ${slot}`, { timeoutMs: 5000 }); }
+  /** save never returns a prompt on the F V2 (confirmed in nvnapython). */
+  async save(slot) { return this.link.commandNoPrompt(`save ${slot}`, 1500); }
+
+  // ---- screen -------------------------------------------------------------
+  /** Grab the framebuffer. Returns { width, height, rgba: Uint8ClampedArray, ms }. */
+  async capture() {
+    const [W, H] = this.env.screen;
+    const { payload, ms } = await this.link.commandBinary('capture', W * H * 2);
+    const rgba = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < W * H; i++) {
+      const v = payload[2 * i] | (payload[2 * i + 1] << 8);            // little-endian RGB565
+      const r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31;
+      // nvnapython screen_capture.py: F-series byte order has R and B swapped
+      rgba[4 * i] = (b << 3) | (b >> 2); rgba[4 * i + 1] = (g << 2) | (g >> 4); rgba[4 * i + 2] = (r << 3) | (r >> 2); rgba[4 * i + 3] = 255;
+    }
+    return { width: W, height: H, rgba, ms };
+  }
+
+  // ---- raw -----------------------------------------------------------------
+  /** Anything else, for the console box. */
+  async raw(cmd, timeoutMs = 8000) { return this.link.command(cmd, { timeoutMs }); }
+}
