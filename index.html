@@ -35,6 +35,7 @@
   </label>
   <span class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
   <span class="badge" id="calBadgeTop" hidden>cal: unknown</span>
+  <span class="badge rec" id="recBadge" hidden>● REC</span>
   <button class="btn small" id="freezeBtn" aria-pressed="false" disabled title="Sends pause / resume. The device must be sweeping to calibrate.">Freeze device screen</button>
   <span class="spacer"></span>
   <nav>
@@ -105,6 +106,31 @@
         <div class="field"><label for="edelay">Electrical delay (edelay)</label>
           <div class="row"><input type="text" id="edelay" placeholder="e.g. 0"><button class="btn small" id="edelayGet">Read</button><button class="btn small" id="edelaySet">Set</button></div>
           <p class="hint">Port extension for a cable between the port and the DUT. Passed straight to the device.</p></div>
+      </div>
+    </section>
+
+    <section data-section="recording">
+      <h2><button type="button" aria-expanded="false">Recording</button></h2>
+      <div class="body">
+        <p class="hint" style="margin:0 0 8px">While recording, every sweep (single or continuous) and every CW reading is kept with a timestamp. Works in any view.</p>
+        <div class="stack">
+          <button class="btn primary block" id="recBtn" aria-pressed="false">Start recording</button>
+        </div>
+        <dl class="kv">
+          <dt>Sweeps</dt><dd id="recSweeps">0</dd>
+          <dt>CW readings</dt><dd id="recCw">0</dd>
+          <dt>Size</dt><dd id="recSize">0 kB</dd>
+        </dl>
+        <span class="label" style="margin-top:12px">Save</span>
+        <div class="tools">
+          <button class="btn small" id="recWfBtn" disabled title="One row per sweep, one column per frequency, |S11| in dB">Waterfall CSV</button>
+          <button class="btn small" id="recWf21Btn" disabled title="Same, for |S21|">|S21| matrix</button>
+          <button class="btn small" id="recSweepsBtn" disabled title="One row per sweep point, all columns">Sweep log CSV</button>
+          <button class="btn small" id="recCwBtn" disabled>CW log CSV</button>
+          <button class="btn small" id="recJsonBtn" disabled>Everything (JSON)</button>
+          <button class="btn small" id="recClearBtn" disabled>Clear</button>
+        </div>
+        <p class="hint">The waterfall CSV matches the plot: timestamps down, frequencies across. The sweep log is the long format for pandas.</p>
       </div>
     </section>
 

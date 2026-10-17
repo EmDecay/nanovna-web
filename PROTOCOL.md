@@ -42,7 +42,7 @@ one command known not to answer with a prompt (see *Quirks*).
 | `data 0` / `data 1` | `re im` per line for S11 / S21 of the device's current sweep | Diagnostics only |
 | `capture` | binary: width × height × 2 bytes, RGB565 | *Device screenshot* button |
 | `cal open` / `short` / `load` / `thru` / `done` / `reset` / `on` / `off` | — | Calibration section |
-| `save N` (0–4) | **no prompt** on the F V2 — echo only | Calibration → Save (sent via `commandNoPrompt`) |
+| `save N` (0–4) | **no prompt** on the F V2; **hangs the device** on the F V3 fw 0.5.8 | Calibration → Save, behind a confirm; the page probes `version` afterwards |
 | `recall N` (0–6) | — | Calibration → Recall |
 | `edelay [value]` | current value when no argument | Calibration → electrical delay; value passed through unchanged |
 | `cwfreq <kHz>` | — | CW meter: puts the device's own screen at that frequency. The page's readings come from an 11-point `scan` over 1 kHz, averaged |
@@ -119,6 +119,12 @@ From the page's own diagnostic sample (Chrome/Edge on Windows):
 - `marker [1|2|3|4] [on|off|{index}]`, `trace [0|1|2|3|all] [{format}|scale|
   refpos|channel|off] [{value}]`, `edelay {value}`, `pwm {0.0-1.0}`,
   `beep on/off` — syntax as the page sends it.
+- `cal open/short/load/thru/done/on/off/reset` all reply with a prompt in
+  45–400 ms while the device is sweeping (console log, 07:02–07:05).
+- **`save 0` hung the device.** Echo only, then no reply to anything —
+  not even command echoes — for 90+ s; the screen froze too. Recovery is a
+  power cycle. The page now warns before sending `save` on an F V3 and
+  probes with `version` afterwards. Prefer the device menu (CAL → SAVE).
 
 ## Not yet verified on hardware
 
@@ -130,7 +136,7 @@ From the page's own diagnostic sample (Chrome/Edge on Windows):
 - `edelay` units and reply format.
 - `marker`/`trace` effect while paused; exact trace format names accepted.
 - `beep` latency; whether `cwfreq` disturbs a following `scan`.
-- `save N` prompt behaviour on the V3 (F V2: no prompt).
+
 - `edelay` units and reply format (the page shows the reply as-is).
 - Whether `marker N idx` and `trace 0 fmt` take effect while the sweep is
   paused, and the exact format names the F V3 accepts.

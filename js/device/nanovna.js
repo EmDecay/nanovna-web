@@ -19,7 +19,7 @@ export class NanoVNA {
     this.link = link;
     this.model = DEFAULT_MODEL;
     this.ident = { version: '', info: '', modelName: '', label: '' };
-    this.cwUnit = 1e3; this.deviceSweep = null; this.paused = false; this.sweepChanged = false;
+    this.cwUnit = 1e3; this.deviceSweep = null; this.paused = false; this.sweepChanged = false; this.wedged = false;
   }
   get env() { return MODELS[this.model]; }
 
@@ -108,8 +108,16 @@ export class NanoVNA {
   /** cal('open'|'short'|'load'|'thru'|'done'|'reset'|'on'|'off') */
   async cal(action) { return check(await this.link.command(`cal ${action}`, { timeoutMs: 8000 }), `cal ${action}`); }
   async recall(slot) { return check(await this.link.command(`recall ${slot}`, { timeoutMs: 5000 }), `recall ${slot}`); }
-  /** save never returns a prompt on the F V2 (confirmed in nvnapython). */
-  async save(slot) { return this.link.commandNoPrompt(`save ${slot}`, 1500); }
+  /**
+   * save never returns a prompt on the F V2 (nvnapython). On the F V3 fw 0.5.8
+   * it was seen to hang the whole device until power-cycled. Returns
+   * { alive } after probing the console with `version`.
+   */
+  async save(slot) {
+    await this.link.commandNoPrompt(`save ${slot}`, 2000);
+    try { await this.link.command('version', { timeoutMs: 4000 }); return { alive: true }; }
+    catch { this.wedged = true; return { alive: false }; }
+  }
 
   // ---- single frequency ----------------------------------------------------
   /** cwfreq {kHz}: put the device in CW at one frequency (its own screen). */

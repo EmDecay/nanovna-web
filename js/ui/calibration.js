@@ -50,7 +50,16 @@ export function initCalibration(root, getVna, con, hooks = {}) {
   root.querySelector('[data-cal="on"]').addEventListener('click', () => run(async vna => { await vna.cal('on'); state.on = true; setBadge(); }, 'cal on'));
   root.querySelector('[data-cal="off"]').addEventListener('click', () => run(async vna => { await vna.cal('off'); state.on = false; setBadge(); }, 'cal off'));
   root.querySelector('#calSave').addEventListener('click', () => run(async vna => {
-    const slot = +root.querySelector('#calSlot').value; await vna.save(slot); con.dim(`save ${slot} sent (this command returns no prompt on the F V2)`);
+    const slot = +root.querySelector('#calSlot').value;
+    const risky = vna.model === 'NANOVNA_F_V3';
+    const msg = risky
+      ? `On the NanoVNA-F V3 (fw 0.5.8) "save" over USB has been seen to freeze the device until it is power-cycled. The safer way is the device's own menu: CAL → SAVE ${slot}.\n\nSend "save ${slot}" anyway?`
+      : `Send "save ${slot}"? This command returns no prompt on the F V2; the page will probe the console afterwards.`;
+    if (!confirm(msg)) return;
+    prompt.textContent = `Saving to slot ${slot}…`;
+    const r = await vna.save(slot);
+    if (r.alive) { prompt.textContent = `Saved to slot ${slot}. Console still responding.`; con.dim(`save ${slot}: console alive`); }
+    else { prompt.textContent = `Device stopped responding after save ${slot}. Power-cycle it, then Connect again and check CAL → RECALL ${slot} on the device.`; if (hooks.onWedged) hooks.onWedged(); }
   }, 'save'));
   root.querySelector('#calRecall').addEventListener('click', () => run(async vna => {
     const slot = +root.querySelector('#calSlot').value; await vna.recall(slot); state.on = true; setBadge(); prompt.textContent = `Recalled slot ${slot}.`;

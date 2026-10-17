@@ -19,8 +19,9 @@ import { initCalibration } from './ui/calibration.js';
 import { initCw } from './ui/cw.js';
 import { sessionBlob, parseSession, parseTouchstone, pickFile } from './ui/session.js';
 import { initDeviceTools } from './ui/devicetools.js';
+import { createRecorder } from './ui/recorder.js';
 
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.4.0';
 const $ = id => document.getElementById(id);
 const VIEW_TO_TRACE = { s11db: 'logmag', s21db: 'logmag', swr: 'swr', phase: 'phase', smith: 'smith', waterfall: 'logmag' };
 
@@ -40,10 +41,18 @@ const cal = initCalibration($('calSection'), () => state.vna, con, {
   // runs before every cal step: the device must be sweeping to measure a standard
   async beforeStep(vna) { if (vna.paused) { await vna.resume(); setFreezeUi(false); con.dim('resumed the device sweep for calibration'); } },
   async currentSweep(vna) { try { const sw = await vna.sweep(); return `${fmtHz(sw.start)} – ${fmtHz(sw.stop)}, ${sw.pts} pts`; } catch { return 'unknown'; } },
+  onWedged() {
+    con.err('device console stopped responding after save — power-cycle the NanoVNA, then Connect again');
+    setStatus('Device not responding after save — power-cycle it and reconnect', 'err');
+    stopContinuous(); cw.stop();
+    ['singleBtn', 'contBtn', 'diagBtn', 'shotBtn', 'devSweepBtn', 'devDataBtn', 'syncMarkersBtn', 'freezeBtn'].forEach(id => $(id).disabled = true);
+    cal.setEnabled(false); tools.setEnabled(false);
+  },
 });
 function setFreezeUi(frozen) { const b = $('freezeBtn'); b.setAttribute('aria-pressed', String(frozen)); b.textContent = frozen ? 'Device frozen — click to resume' : 'Freeze device screen'; b.classList.toggle('running', frozen); }
 $('freezeBtn').addEventListener('click', async () => { const v = state.vna; if (!v || state.busy) return; try { if (v.paused) await v.resume(); else await v.pause(); setFreezeUi(v.paused); } catch (e) { con.err(e.message); } });
-const cw = initCw($('cwPanel'), () => state.vna, () => settings.z0, con);
+const recorder = createRecorder();
+const cw = initCw($('cwPanel'), () => state.vna, () => settings.z0, con, m => recorder.addCw(m));
 const tools = initDeviceTools($('toolsSection'), () => state.vna, con);
 
 // ---------------------------------------------------------------- model / status
@@ -112,7 +121,7 @@ function sweepParams() {
   return { start: parseFloat($('fStart').value) * 1e6, stop: parseFloat($('fStop').value) * 1e6, pts: Math.min(Math.max(pts, m.minPts), m.maxPts) };
 }
 function acceptSweep(sw) {
-  state.sweep = sw;
+  state.sweep = sw; recorder.addSweep(sw);
   $('sweepTime').textContent = `${(sw.ms / 1000).toFixed(2)} s · ${sw.pts} pts`;
   const row = new Float32Array(sw.pts); for (let i = 0; i < sw.pts; i++) row[i] = db(sw.s11[2 * i], sw.s11[2 * i + 1]);
   if (state.history.length && state.history[0].length !== sw.pts) state.history = [];
@@ -294,7 +303,7 @@ $('s1pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s1p`, t
 $('s2pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s2p`, touchstoneBlob(state.sweep, settings.z0, 2, `${state.vna?.env.name || ''} — ${state.vna?.ident.label || ''}`)));
 $('pngBtn').addEventListener('click', () => canvasPng(canvas, `nanovna-${state.view}-${stamp()}.png`));
 $('shotBtn').addEventListener('click', async () => { if (!state.vna || state.busy) return; state.busy = true; try { const img = await state.vna.capture(); rgbaToPngDownload(img, `nanovna-screen-${stamp()}.png`); con.dim(`capture: ${img.width}×${img.height} in ${img.ms.toFixed(0)} ms`); } catch (e) { con.err('screenshot failed: ' + e.message); } finally { state.busy = false; } });
-$('diagBtn').addEventListener('click', async () => { if (!state.vna || state.busy) return; state.busy = true; $('diagBtn').disabled = true; $('diagOut').hidden = false; $('diagOut').textContent = 'collecting…'; try { state.diag = await collectDiagnostics(state.vna, sweepParams(), t => $('diagOut').textContent = t); $('diagDlBtn').disabled = false; } catch (e) { $('diagOut').textContent += '\nfailed: ' + e.message; } finally { state.busy = false; $('diagBtn').disabled = false; } });
+$('diagBtn').addEventListener('click', async () => { if (!state.vna || state.busy) return; state.busy = true; state.diag = null; $('diagBtn').disabled = true; $('diagDlBtn').disabled = true; $('diagOut').hidden = false; $('diagOut').textContent = 'collecting… (each command waits up to 8 s if the device is silent)'; try { state.diag = await collectDiagnostics(state.vna, sweepParams(), t => $('diagOut').textContent = t); } catch (e) { $('diagOut').textContent += '\nfailed: ' + e.message; } finally { state.busy = false; $('diagBtn').disabled = false; $('diagDlBtn').disabled = !state.diag; } });
 $('diagDlBtn').addEventListener('click', () => state.diag && download(`nanovna-diag-${stamp()}.json`, new Blob([JSON.stringify(state.diag, null, 2)], { type: 'application/json' })));
 $('sessSave').addEventListener('click', () => download(`nanovna-session-${stamp()}.json`, sessionBlob({ sweep: state.sweep, held: state.held, overlay: state.overlay, markers: state.markers, settings, model: state.vna?.model, ident: state.vna?.ident, appVersion: APP_VERSION })));
 $('sessLoad').addEventListener('click', loadSession);
@@ -310,6 +319,25 @@ initSettingsPanel($('settingsForm'), key => {
 });
 window.addEventListener('beforeunload', () => { if (state.vna && !state.demo) state.vna.link.writeSync('resume\r\n'); });
 if (hasWebSerial()) navigator.serial.addEventListener('disconnect', () => { if (state.vna && !state.demo) disconnect(true); });
+
+// ---------------------------------------------------------------- recording
+function refreshRec() {
+  const n = recorder.sweeps.length, c = recorder.cw.length, any = n + c > 0;
+  $('recSweeps').textContent = n; $('recCw').textContent = c; $('recSize').textContent = (recorder.bytes() / 1024).toFixed(0) + ' kB';
+  $('recBtn').textContent = recorder.on ? 'Stop recording' : 'Start recording'; $('recBtn').classList.toggle('running', recorder.on); $('recBtn').setAttribute('aria-pressed', String(recorder.on));
+  $('recBadge').hidden = !recorder.on; $('recBadge').textContent = `● REC ${n + c}`;
+  $('recWfBtn').disabled = $('recWf21Btn').disabled = $('recSweepsBtn').disabled = !n; $('recCwBtn').disabled = !c; $('recJsonBtn').disabled = $('recClearBtn').disabled = !any;
+}
+recorder.onChange = refreshRec;
+$('recBtn').addEventListener('click', () => { if (recorder.on) recorder.stop(); else { recorder.start(); con.dim('recording started'); } });
+$('recWfBtn').addEventListener('click', () => download(`nanovna-waterfall-s11-${stamp()}.csv`, recorder.waterfallCsv('s11')));
+$('recWf21Btn').addEventListener('click', () => download(`nanovna-waterfall-s21-${stamp()}.csv`, recorder.waterfallCsv('s21')));
+$('recSweepsBtn').addEventListener('click', () => download(`nanovna-sweeps-${stamp()}.csv`, recorder.sweepsCsv(settings.z0)));
+$('recCwBtn').addEventListener('click', () => download(`nanovna-cw-${stamp()}.csv`, recorder.cwCsv(settings.z0)));
+$('recJsonBtn').addEventListener('click', () => download(`nanovna-recording-${stamp()}.json`, recorder.jsonBlob({ version: APP_VERSION, model: state.vna?.model, ident: state.vna?.ident, z0: settings.z0 })));
+$('recClearBtn').addEventListener('click', () => { if (confirm('Discard the recording?')) recorder.clear(); });
+window.addEventListener('beforeunload', e => { if (recorder.on && recorder.sweeps.length + recorder.cw.length) { e.preventDefault(); e.returnValue = ''; } });
+refreshRec();
 
 $('appVersion').textContent = 'v' + APP_VERSION;
 applyModel(DEFAULT_MODEL); setView('s11db'); renderMarkers(); setOverlay(null); tick();

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.0 — recording
+
+- Recording section: one Start/Stop toggle logs every sweep (single or
+  continuous) and every CW-meter reading with timestamps, in any view. A
+  pulsing REC badge with the count sits in the top bar; the page warns before
+  closing with an unsaved recording.
+- Exports: waterfall matrix CSV (timestamps down, frequencies across, |S11|
+  dB — the plot as data; also |S21|), sweep log CSV (long format, one row per
+  point with dB/phase/SWR/R/X), CW log CSV (one row per reading), and the
+  whole recording as JSON.
+
+## v0.3.4 — save hang
+
+- `save N` over USB was seen to freeze an F V3 (fw 0.5.8) until power-cycled.
+  The Save button now confirms first (recommending the device's own CAL →
+  SAVE menu on the V3), probes the console with `version` afterwards, and if
+  the device is silent says so and disables the controls instead of letting
+  every later command time out.
+- Diagnostics: the download button is disabled while collecting and a failed
+  collection produces its own JSON, so an old sample can't be downloaded by
+  mistake.
+
 ## v0.3.3 — don't freeze the device
 
 - The page no longer sends `pause` at connect. The first hardware session

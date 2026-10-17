@@ -76,6 +76,10 @@ above the plot.
   minimum SWR drops below a threshold you set. Optional browser tone too.
 - **Export** — CSV with derived columns, `.s1p`, `.s2p`, plot PNG, and a
   screenshot of the device's own screen.
+- **Recording** — log every sweep and CW reading with timestamps while
+  recording is on; save as a waterfall matrix CSV (the plot as data), a long
+  sweep log CSV, a CW log CSV, or JSON. The browser-side equivalent of
+  `plotting_waterfall_static.py`.
 - **Diagnostics** — one button runs a fixed set of commands, records raw
   replies and timings, and downloads a JSON to attach to an issue. This is
   how the page gets validated against hardware it hasn't seen yet.
@@ -128,7 +132,7 @@ js/
     rect.js  smith.js  waterfall.js  palettes.js  common.js
   ui/
     sidebar.js  console.js  settings.js  diagnostics.js  export.js
-    calibration.js  cw.js  session.js  devicetools.js
+    calibration.js  cw.js  session.js  devicetools.js  recorder.js
 ```
 
 `js/device/` is the part another tool would reuse: `main.js` calls

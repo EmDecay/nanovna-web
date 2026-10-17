@@ -75,3 +75,4 @@ code { font-family: var(--mono); font-size: .9em; background: var(--screen); bor
 .console .bar label { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--ink-2); }
 .console .bar select { padding: 3px 6px; font-size: .85rem; }
 .hint.err { color: var(--err); }
+.badge.rec { border-color: var(--err); color: var(--err); animation: pulse 1.2s ease-in-out infinite; }

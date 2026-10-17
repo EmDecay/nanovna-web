@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import { db, swr, gammaToZ, fmtHz } from '../rf.js';
 
-export function initCw(root, getVna, getZ0, con) {
+export function initCw(root, getVna, getZ0, con, onReading) {
   const freq = root.querySelector('#cwFreq'), runBtn = root.querySelector('#cwRun');
   const out = { s11: root.querySelector('#cwS11'), swr: root.querySelector('#cwSwr'), z: root.querySelector('#cwZ'), s21: root.querySelector('#cwS21'), f: root.querySelector('#cwF'), rate: root.querySelector('#cwRate') };
   const st = { running: false, last: null };
@@ -13,7 +13,7 @@ export function initCw(root, getVna, getZ0, con) {
       try {
         const hz = parseFloat(freq.value) * 1e6;
         const m = await vna.measureAt(hz);
-        st.last = m;
+        st.last = m; m.t = Date.now(); if (onReading) onReading(m);
         const [re, im] = m.s11, z = gammaToZ(re, im, getZ0());
         out.f.textContent = fmtHz(hz); out.s11.textContent = db(re, im).toFixed(2); out.swr.textContent = swr(re, im).toFixed(3);
         out.z.textContent = `${z.r.toFixed(1)} ${z.x >= 0 ? '+' : '−'} j${Math.abs(z.x).toFixed(1)}`;
