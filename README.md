@@ -5,7 +5,7 @@ USB, open the page in Chrome or Edge, click Connect: S11/S21 traces, SWR, Smith
 chart, a live waterfall, markers with an R + jX readout, and CSV / Touchstone
 export. Nothing to install.
 
-**Use it:** https://interactive-hardware-interfacing.github.io/nanovna-web/
+**Use it:** https://lc-linkous.github.io/nanovna-web/
 
 The page has a *Try without hardware* mode with a simulated F V3, so it can be
 previewed anywhere.

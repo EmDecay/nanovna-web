@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
   - name: Open the tool
-    url: https://interactive-hardware-interfacing.github.io/nanovna-web/
+    url: https://lc-linkous.github.io/nanovna-web/
     about: The live page. Try the demo first to see whether the problem needs a device to reproduce.
   - name: Console protocol as used by the page
-    url: https://github.com/interactive-hardware-interfacing/nanovna-web/blob/main/PROTOCOL.md
+    url: https://github.com/LC-Linkous/nanovna-web/blob/main/PROTOCOL.md
     about: Commands, framing, quirks, and the list of things not yet verified on hardware.
   - name: nanoVNA_python
     url: https://github.com/LC-Linkous/nanoVNA_python

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.2 — first hardware session (NanoVNA-F V3, fw 0.5.8)
+
+- `cwfreq` unit is read from the device's `help` text (Hz on the F V3; the
+  page previously sent kHz). Fallback by model.
+- The device's own sweep is recorded at connect and restored at disconnect,
+  because `scan` replaces it. Shown in the Sweep section.
+- Scan timeout scales with point count (801 pts measured at 4.8 s).
+- Status line uses the model name from `info` (`version` alone is `0.5.8`).
+- Demo device now mimics the real replies: bare version, `info` layout,
+  `help` listing, trailing space on scan lines, ~5.5 ms/point timing, and
+  `scan` rewriting the device sweep.
+- PROTOCOL.md: verified-on-hardware section added from the diagnostic sample.
+
 ## v0.3.1
 
 - Sidebar is resizable: drag the edge (double-click to reset); width remembered.

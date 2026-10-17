@@ -96,19 +96,39 @@ overrides it.
    sweep and logs it (the `robust_acquisition_loop.py` pattern).
 5. **F V3 above 6 GHz** — the envelope caps at 6 GHz so the page never asks.
 
+## Verified on hardware — NanoVNA-F V3, firmware 0.5.8 (2026-10-17)
+
+From the page's own diagnostic sample (Chrome/Edge on Windows):
+
+- Echo + doubled prompt `ch> \r\nch> ` on every command, exactly as nvnapython
+  documents. `version` answers with the bare `0.5.8`; the model name is in
+  `info` (`Model:        NanoVNA-F_V3`).
+- `scan a b n 7` returns `n` lines of `freq s11re s11im s21re s21im ` with a
+  **trailing space**, integer Hz, no header or footer. 801 points parsed OK.
+- **`scan` rewrites the device's own sweep.** After `scan … 11 7`, `sweep`
+  and `data 0` reflect 11 points. The page records the device sweep at
+  connect and restores it on disconnect.
+- Timing: 11 pts ≈ 0.38 s, 801 pts ≈ 4.8 s (≈ 5.5 ms/point + ~0.3 s).
+  `frequencies` at 801 pts ≈ 0.33 s. `sweep` (read) ≈ 0.8 s. The scan
+  timeout scales with points.
+- **`cwfreq` takes Hz** on this firmware (`help`: `cwfreq {frequency(Hz)}`),
+  not kHz as on older units. The page reads the unit from `help` at connect.
+- `help` lists: reset cwfreq saveconfig clearconfig data frequencies scan
+  sweep touchcal touchtest pause resume cal save recall trace marker edelay
+  pwm beep lcd capture version info SN resolution LCD_ID rtc. Rejections are
+  reported as `usage: …` lines, which `looksLikeError()` catches.
+- `marker [1|2|3|4] [on|off|{index}]`, `trace [0|1|2|3|all] [{format}|scale|
+  refpos|channel|off] [{value}]`, `edelay {value}`, `pwm {0.0-1.0}`,
+  `beep on/off` — syntax as the page sends it.
+
 ## Not yet verified on hardware
 
-The page was built against the demo device and the library's notes. First
-things to check with a real unit, in the order they'd break:
-
-- `scan … 7` line format on the F V3 at 801 points (field count, integer
-  frequencies, any header/footer lines).
-- Whether `capture` echoes the command before the pixel data, and the byte
-  order (the page assumes little-endian RGB565 with the F-series B/R swap,
-  per `screen_capture.py`).
-- Real sweep time at full points, which decides whether *Continuous* needs
-  a throttle.
-- Whether `pause` is needed at all for `scan` to return clean data.
+- `capture` byte order (page assumes little-endian RGB565, B/R swapped).
+- `cal …` sequence and whether `scan` output is corrected when cal is on.
+- `edelay` units and reply format.
+- `marker`/`trace` effect while paused; exact trace format names accepted.
+- `beep` latency; whether `cwfreq` disturbs a following `scan`.
+- `save N` prompt behaviour on the V3 (F V2: no prompt).
 - `edelay` units and reply format (the page shows the reply as-is).
 - Whether `marker N idx` and `trace 0 fmt` take effect while the sweep is
   paused, and the exact format names the F V3 accepts.

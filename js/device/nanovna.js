@@ -18,7 +18,8 @@ export class NanoVNA {
   constructor(link) {
     this.link = link;
     this.model = DEFAULT_MODEL;
-    this.ident = { version: '', info: '' };
+    this.ident = { version: '', info: '', modelName: '', label: '' };
+    this.cwUnit = 1e3; this.deviceSweep = null;
   }
   get env() { return MODELS[this.model]; }
 
@@ -35,8 +36,19 @@ export class NanoVNA {
     if (!v.raw.includes(PROMPT)) throw new Error('that port did not answer like a NanoVNA console');
     this.ident = { version: v.body.trim(), info: i.body.trim() };
     this.model = modelOverride && MODELS[modelOverride] ? modelOverride : detectModel(this.ident.version, this.ident.info);
+    // F V3 firmware 0.5.8 answers `version` with just "0.5.8"; the model name is in `info`.
+    const m = /Model:\s*(\S+)/i.exec(this.ident.info);
+    this.ident.modelName = m ? m[1] : this.ident.version.split('\n')[0];
+    this.ident.label = `${this.ident.modelName} v${this.ident.version.split('\n')[0].replace(/^v/i, '')}`;
+    // The console's own help text says which unit cwfreq takes (Hz on the F V3, kHz on older firmware).
+    this.cwUnit = this.model === 'NANOVNA_F_V3' ? 1 : 1e3;
+    try { const h = (await this.link.command('help', { timeoutMs: 4000, quiet: true })).body; const u = /cwfreq[^\n]*frequency\((k?hz)\)/i.exec(h); if (u) this.cwUnit = u[1].toLowerCase() === 'hz' ? 1 : 1e3; this.ident.help = h; } catch {}
+    // Remember the device's own sweep so it can be restored on disconnect (scan rewrites it).
+    try { this.deviceSweep = await this.sweep(); } catch { this.deviceSweep = null; }
     return this.ident;
   }
+  /** Put the device back on the sweep it had when we connected. */
+  async restoreDeviceSweep() { const d = this.deviceSweep; if (d && Number.isFinite(d.start) && Number.isFinite(d.stop) && d.pts) await this.sweep(d.start, d.stop, d.pts); }
 
   // ---- sweep control -----------------------------------------------------
   async pause()  { return this.link.command('pause',  { timeoutMs: 2000 }); }
@@ -71,7 +83,7 @@ export class NanoVNA {
     const cmd = `scan ${start} ${stop} ${pts} 7`;
     let last = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const r = await this.link.command(cmd, { timeoutMs: 15000, quiet });
+      const r = await this.link.command(cmd, { timeoutMs: 8000 + pts * 25, quiet });
       const parsed = NanoVNA.parseScan(r.body, pts);
       if (parsed) return { ...parsed, pts, start, stop, t: Date.now(), ms: r.ms, cmd };
       last = { lines: r.body.split('\n').filter(Boolean).length, expected: pts, attempt };
@@ -99,7 +111,7 @@ export class NanoVNA {
 
   // ---- single frequency ----------------------------------------------------
   /** cwfreq {kHz}: put the device in CW at one frequency (its own screen). */
-  async cwfreq(hz) { return check(await this.link.command(`cwfreq ${Math.round(hz / 1e3)}`, { timeoutMs: 3000 }), 'cwfreq'); }
+  async cwfreq(hz) { return check(await this.link.command(`cwfreq ${Math.round(hz / (this.cwUnit || 1))}`, { timeoutMs: 3000 }), 'cwfreq'); }
   /** One-point measurement for the CW meter: a tiny 11-point scan, averaged. */
   async measureAt(hz) {
     const pts = 11, span = 1e3;

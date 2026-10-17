@@ -9,7 +9,7 @@ import { ShellLink } from './shell-link.js';
 export class DemoLink extends ShellLink {
   constructor() {
     super();
-    this.sweepStart = 50e3; this.sweepStop = 900e6; this.sweepPts = 101;
+    this.sweepStart = 2.2e9; this.sweepStop = 2.6e9; this.sweepPts = 801;   // same as the real unit was found on
     this.f0 = 433e6;            // first resonance of the simulated antenna
     this.paused = false;
     this.calOn = false; this.edelayVal = '0'; this.beepOn = false; this.pwmVal = '1.00';
@@ -52,10 +52,10 @@ export class DemoLink extends ShellLink {
     const cmd = s.trim(); const [c, ...a] = cmd.split(/\s+/); const lc = (c || '').toLowerCase();
     let body = '', delay = 8;
     switch (lc) {
-      case 'version': body = 'NanoVNA-F_V3 v1.0.6 (demo)'; break;
-      case 'info': body = 'Board: NanoVNA-F V3 (simulated)\nFrequency range: 50 kHz - 6.3 GHz\nSweep points: 51-801\nBuild: demo'; break;
-      case 'sn': body = 'DEMO-0000-0000'; break;
-      case 'help': body = 'Commands: version info SN help sweep frequencies data scan pause resume cal save recall capture'; break;
+      case 'version': body = '0.5.8'; break;                                   // the real F V3 answers with the bare version
+      case 'info': body = 'Model:        NanoVNA-F_V3 (demo)\nFrequency:    50k ~ 6.3GHz\nBuild time:   demo'; break;
+      case 'sn': body = 'DEMO000000000000'; break;
+      case 'help': body = 'There are all commands\nhelp:                lists all the registered commands\ncwfreq:              usage: cwfreq {frequency(Hz)}\ndata:                usage: data [array]\nfrequencies:         usage: frequencies\nscan:                usage: scan {start(Hz)} {stop(Hz)} [points] [outmask]\nsweep:               usage: sweep [start(Hz)] [stop(Hz)] [points]\ntouchcal:            usage: touchcal\ntouchtest:           usage: touchtest\npause:               usage: pause\nresume:              usage: resume\ncal:                 usage: cal [load|open|short|thru|done|reset|on|off]\nsave:                usage: save {id}\nrecall:              usage: recall {id}\ntrace:               usage: trace [0|1|2|3|all] [{format}|scale|refpos|channel|off] [{value}]\nmarker:              usage: marker [1|2|3|4] [on|off|{index}]\nedelay:              usage: edelay {value}\npwm:                 usage: pwm {0.0-1.0}\nbeep:                usage: beep on/off\ncapture:             usage: capture\nversion:             usage: Show NanoVNA version\ninfo:                usage: NanoVNA-F V3 info\nSN:                  usage: NanoVNA-F V3 Serial Numbel\nresolution:          usage: LCD resolution'; break;
       case 'pause': this.paused = true; break;
       case 'resume': this.paused = false; break;
       case 'cal': { const a0 = (a[0] || '').toLowerCase(); if (a0 === 'on') this.calOn = true; else if (a0 === 'off' || a0 === 'reset') this.calOn = false; else if (!a0) body = `cal: ${this.calOn ? 'on' : 'off'}`; delay = ['open', 'short', 'load', 'thru', 'done'].includes(a0) ? 400 : 8; break; }
@@ -91,15 +91,16 @@ export class DemoLink extends ShellLink {
       case 'scan': {
         const st = +a[0], sp = +a[1], pts = +(a[2] || this.sweepPts), mask = +(a[3] || 0);
         if (!(st < sp)) { body = 'scan: start must be < stop'; break; }
+        this.sweepStart = st; this.sweepStop = sp; this.sweepPts = pts;   // real firmware: scan replaces the device sweep
         const L = [];
         for (let i = 0; i < pts; i++) {
           const f = st + (sp - st) * i / (pts - 1); const p = [];
           if (mask & 1) p.push(Math.round(f));
           if (mask & 2) { const v = this.s11(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); }
           if (mask & 4) { const v = this.s21(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); }
-          if (p.length) L.push(p.join(' '));
+          if (p.length) L.push(p.join(' ') + ' ');
         }
-        body = L.join('\n'); delay = 40 + pts * 1.1; break; }
+        body = L.join('\n'); delay = 300 + pts * 5.5; break; }   // measured on an F V3: ~5.5 ms per point
       case 'capture': {
         // synthetic 800x480 RGB565 frame: dark gradient with a yellow |S11| trace
         const W = 800, H = 480, buf = new Uint8Array(W * H * 2);

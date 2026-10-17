@@ -20,7 +20,7 @@ import { initCw } from './ui/cw.js';
 import { sessionBlob, parseSession, parseTouchstone, pickFile } from './ui/session.js';
 import { initDeviceTools } from './ui/devicetools.js';
 
-const APP_VERSION = '0.3.1';
+const APP_VERSION = '0.3.2';
 const $ = id => document.getElementById(id);
 const VIEW_TO_TRACE = { s11db: 'logmag', s21db: 'logmag', swr: 'swr', phase: 'phase', smith: 'smith', waterfall: 'logmag' };
 
@@ -80,7 +80,8 @@ async function connect(demo) {
     applyModel(vna.model);
     await vna.pause().catch(() => {});
     if (settings.brightness < 1) await vna.pwm(settings.brightness).catch(() => {});
-    setStatus(`${demo ? 'Demo' : 'Connected'} · ${vna.ident.version.split('\n')[0]} · as ${vna.env.name}`, demo ? 'demo' : 'ok');
+    setStatus(`${demo ? 'Demo' : 'Connected'} · ${vna.ident.label} · as ${vna.env.name}`, demo ? 'demo' : 'ok');
+    if (vna.deviceSweep) { $('devWas').textContent = `${fmtHz(vna.deviceSweep.start)} – ${fmtHz(vna.deviceSweep.stop)}, ${vna.deviceSweep.pts} pts (restored on disconnect)`; }
     setEnabled(true); chart.dirty = true;
   } catch (e) {
     con.err('connect failed: ' + e.message); setStatus('Connection failed — ' + e.message, 'err');
@@ -90,8 +91,8 @@ async function connect(demo) {
 async function disconnect(silent) {
   if (!state.vna) return;
   const vna = state.vna; stopContinuous(); cw.stop();
-  try { if (!silent) await vna.resume(); } catch {}
-  await vna.link.close(); state.vna = null; state.demo = false;
+  try { if (!silent) { await vna.restoreDeviceSweep(); await vna.resume(); } } catch {}
+  await vna.link.close(); state.vna = null; state.demo = false; $('devWas').textContent = '—';
   setEnabled(false); setStatus('Not connected', ''); chart.dirty = true;
 }
 
@@ -281,8 +282,8 @@ $('syncMarkersBtn').addEventListener('click', syncMarkersToDevice);
 $('clearMarkersBtn').addEventListener('click', () => { state.markers = []; renderMarkers(); chart.dirty = true; });
 $('markerBody').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.markers.splice(+b.dataset.k, 1); renderMarkers(); chart.dirty = true; });
 $('csvBtn').addEventListener('click', () => download(`nanovna-${stamp()}.csv`, csvBlob(state.sweep, settings.z0)));
-$('s1pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s1p`, touchstoneBlob(state.sweep, settings.z0, 1, `${state.vna?.env.name || ''} — ${state.vna?.ident.version.split('\n')[0] || ''}`)));
-$('s2pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s2p`, touchstoneBlob(state.sweep, settings.z0, 2, `${state.vna?.env.name || ''} — ${state.vna?.ident.version.split('\n')[0] || ''}`)));
+$('s1pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s1p`, touchstoneBlob(state.sweep, settings.z0, 1, `${state.vna?.env.name || ''} — ${state.vna?.ident.label || ''}`)));
+$('s2pBtn').addEventListener('click', () => download(`nanovna-${stamp()}.s2p`, touchstoneBlob(state.sweep, settings.z0, 2, `${state.vna?.env.name || ''} — ${state.vna?.ident.label || ''}`)));
 $('pngBtn').addEventListener('click', () => canvasPng(canvas, `nanovna-${state.view}-${stamp()}.png`));
 $('shotBtn').addEventListener('click', async () => { if (!state.vna || state.busy) return; state.busy = true; try { const img = await state.vna.capture(); rgbaToPngDownload(img, `nanovna-screen-${stamp()}.png`); con.dim(`capture: ${img.width}×${img.height} in ${img.ms.toFixed(0)} ms`); } catch (e) { con.err('screenshot failed: ' + e.message); } finally { state.busy = false; } });
 $('diagBtn').addEventListener('click', async () => { if (!state.vna || state.busy) return; state.busy = true; $('diagBtn').disabled = true; $('diagOut').hidden = false; $('diagOut').textContent = 'collecting…'; try { state.diag = await collectDiagnostics(state.vna, sweepParams(), t => $('diagOut').textContent = t); $('diagDlBtn').disabled = false; } catch (e) { $('diagOut').textContent += '\nfailed: ' + e.message; } finally { state.busy = false; $('diagBtn').disabled = false; } });

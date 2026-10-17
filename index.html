@@ -2,8 +2,8 @@
 <!--
   nanoVNA Web — browser front end for the NanoVNA-F V2 / V3
   SPDX-License-Identifier: GPL-2.0-only
-  Copyright (C) 2026 Interactive Hardware Interfacing contributors
-  Source and license: https://github.com/interactive-hardware-interfacing/nanovna-web
+  Copyright (C) 2026 Lauren Linkous
+  Source and license: https://github.com/LC-Linkous/nanovna-web
   Markup only. Styles in css/, behaviour in js/ (ES modules — serve over http, not file://).
 -->
 <html lang="en" data-theme="dark" data-traces="instrument">
@@ -37,8 +37,8 @@
   <span class="badge" id="calBadgeTop" hidden>cal: unknown</span>
   <span class="spacer"></span>
   <nav>
-    <a href="https://github.com/interactive-hardware-interfacing/nanovna-web">Source</a>
-    <a href="https://interactive-hardware-interfacing.github.io/">All tools</a>
+    <a href="https://github.com/LC-Linkous/nanovna-web">Source</a>
+    <a href="https://lc-linkous.github.io/">Portfolio</a>
   </nav>
 </header>
 <p class="notice" id="noSerial" hidden>This browser can't open USB serial ports. Use <b>Chrome</b> or <b>Edge</b> on a laptop or desktop to connect. The demo works anywhere.</p>
@@ -73,6 +73,7 @@
         <dl class="kv">
           <dt>Last sweep</dt><dd id="sweepTime">—</dd>
           <dt>Device range</dt><dd id="devRange">—</dd>
+          <dt>Device sweep</dt><dd id="devWas">—</dd>
         </dl>
       </div>
     </section>
@@ -278,7 +279,7 @@
 </div>
 
 <footer>
-  nanoVNA Web <span id="appVersion"></span> · Last updated <time id="updated" datetime="2026-10-17">2026-10-17</time> · Part of <a href="https://interactive-hardware-interfacing.github.io/">Interactive Hardware Interfacing</a>. Works in Chrome and Edge via Web Serial. <a href="https://github.com/interactive-hardware-interfacing/nanovna-web/blob/main/LICENSE">GPL-2.0</a>.
+  nanoVNA Web <span id="appVersion"></span> · Last updated <time id="updated" datetime="2026-10-17">2026-10-17</time> · Works in Chrome and Edge via Web Serial. <a href="https://github.com/LC-Linkous/nanovna-web/blob/main/LICENSE">GPL-2.0</a>.
   Maintained by <a href="https://github.com/LC-Linkous">LC Linkous</a>. Companion to <a href="https://github.com/LC-Linkous/nanoVNA_python">nanoVNA_python</a>. Not affiliated with any NanoVNA manufacturer.
 </footer>
 
