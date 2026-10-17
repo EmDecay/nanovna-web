@@ -2,7 +2,7 @@
 
 ## v0.4.2
 
-- About page: *About* in the top bar (or `#about` in the URL) swaps the plot
+- About page: *About* at the foot of the sidebar (or `#about` in the URL) swaps the plot
   and markers for a short page on what the tool does, the flow, supported
   hardware (drawn from `models.js`), known limits and what is next. *Back to
   plots* returns. Same card layout as fox-bench.

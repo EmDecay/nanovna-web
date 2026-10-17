@@ -31,6 +31,12 @@ a { color: var(--accent); }
 .sidebar h2 button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .sidebar .body { display: none; padding: 4px 16px 16px; }
 .sidebar section.open .body { display: block; }
+/* plain link at the foot of the accordion, styled like a section header */
+.sidebar .sidebar-link { display: flex; justify-content: space-between; align-items: center; padding: 11px 16px; font-size: .95rem; font-weight: 700; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--edge); }
+.sidebar .sidebar-link::after { content: '?'; color: var(--ink-3); font-weight: 400; }
+.sidebar .sidebar-link:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sidebar .sidebar-link[aria-current="page"] { color: var(--accent); }
+.sidebar .sidebar-link[aria-current="page"]::after { content: '←'; }
 
 /* ---- main column ---- */
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -63,7 +69,6 @@ table.grid { width: 100%; border-collapse: collapse; font-size: .86rem; margin: 
 table.grid th, table.grid td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
 table.grid th { color: var(--ink-2); font-weight: 500; }
 table.grid td.mono, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.topbar nav a[aria-current="page"] { color: var(--accent); }
 
 /* ---- console drawer ---- */
 .console { border-top: 1px solid var(--edge); background: var(--panel); display: flex; flex-direction: column; }
