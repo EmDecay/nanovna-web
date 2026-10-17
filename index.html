@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<!--
+  nanoVNA Web — browser front end for the NanoVNA-F V2 / V3
+  SPDX-License-Identifier: GPL-2.0-only
+  Copyright (C) 2026 Interactive Hardware Interfacing contributors
+  Source and license: https://github.com/interactive-hardware-interfacing/nanovna-web
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nanoVNA Web</title>
+<meta name="description" content="Sweep a NanoVNA-F V2 or V3 from the browser over USB: S11/S21 traces, SWR, Smith chart, live waterfall, markers with impedance readout, CSV and Touchstone export.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:  #eef1f5; --panel: #ffffff;
+    --ink: #1c2430; --ink-2: #4b5768; --ink-3: #8591a3;
+    --sage: #7b8da3; --sage-2: #c9d2de; --sage-3: #e3e8ef;
+    --moss: #3b5068; --moss-2: #2c3d50;
+    --s11: #2f5fc4;   /* reflection trace */
+    --s21: #d4860b;   /* transmission trace */
+    --ok: #3a8a3f; --warn: #b8700a; --err: #c2342a;
+    --radius: 6px;
+    --font: 'Atkinson Hyperlegible', system-ui, sans-serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141920; --panel: #1c232d; --ink: #e6eaf0; --ink-2: #aab4c2; --ink-3: #727e90;
+      --sage: #8a9db5; --sage-2: #343f4e; --sage-3: #262e3a; --moss: #9bb8dc; --moss-2: #b4cbe8;
+      --s11: #5a86e0; --s21: #cd8b20; --ok: #3f9e52; --warn: #d99a2e; --err: #e0564b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141920; --panel: #1c232d; --ink: #e6eaf0; --ink-2: #aab4c2; --ink-3: #727e90;
+    --sage: #8a9db5; --sage-2: #343f4e; --sage-3: #262e3a; --moss: #9bb8dc; --moss-2: #b4cbe8;
+    --s11: #5a86e0; --s21: #cd8b20; --ok: #3f9e52; --warn: #d99a2e; --err: #e0564b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.5; padding: 0 16px 48px; }
+  a { color: var(--moss); }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .5; }
+  :focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; padding: 28px 0 18px; border-bottom: 1px solid var(--sage-2); }
+  header.top h1 { font-size: 1.6rem; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+  header.top .sub { color: var(--ink-2); margin: 0; }
+  header.top nav a { margin-left: 18px; font-size: .95rem; }
+
+  .connect { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 0; }
+  .btn { border: 1px solid var(--sage); background: var(--panel); color: var(--ink); border-radius: var(--radius); padding: 8px 16px; line-height: 1.2; }
+  .btn:hover:not(:disabled) { border-color: var(--moss); }
+  .btn.primary { background: var(--moss); border-color: var(--moss); color: var(--paper); font-weight: 700; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn.primary { color: #fff; } }
+  .btn.primary:hover:not(:disabled) { background: var(--moss-2); border-color: var(--moss-2); }
+  .btn.small { padding: 5px 11px; font-size: .9rem; }
+  .btn[aria-pressed="true"] { background: var(--sage-3); border-color: var(--moss); font-weight: 700; }
+  .status { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); }
+  .status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-3); }
+  .status.ok .dot { background: var(--ok); } .status.demo .dot { background: var(--warn); } .status.err .dot { background: var(--err); }
+  .notice { background: var(--sage-3); border-left: 3px solid var(--sage); border-radius: 0 var(--radius) var(--radius) 0; padding: 10px 14px; margin: 0 0 12px; color: var(--ink-2); font-size: .95rem; }
+  .hidden { display: none !important; }
+  select.model { border: 1px solid var(--sage-2); border-radius: var(--radius); background: var(--panel); padding: 7px 10px; }
+
+  .bench { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .bench { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--sage-2); border-radius: var(--radius); padding: 18px; }
+  .panel h2 { font-size: 1rem; margin: 0 0 12px; font-weight: 700; color: var(--ink-2); }
+  .panel + .panel { margin-top: 20px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: .9rem; color: var(--ink-2); margin-bottom: 5px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input[type=number], .row input[type=text] { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--sage-2); border-radius: var(--radius); background: var(--panel); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .row .suffix { color: var(--ink-2); font-size: .9rem; white-space: nowrap; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .radios { display: flex; flex-direction: column; gap: 4px; font-size: .95rem; }
+  .radios label { display: flex; align-items: center; gap: 8px; }
+  .radios input[type=number] { width: 80px; padding: 3px 6px; border: 1px solid var(--sage-2); border-radius: 4px; background: var(--panel); font-family: var(--mono); }
+  .hint { font-size: .85rem; color: var(--ink-3); margin: 4px 0 0; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: .9rem; }
+  .kv dt { color: var(--ink-2); } .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .chart-head h2 { margin: 0; }
+  .views { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .9rem; color: var(--ink-2); margin: 4px 0 2px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+  .chart-wrap { position: relative; }
+  canvas#plot { width: 100%; height: 440px; display: block; touch-action: none; cursor: crosshair; }
+  .tip { position: absolute; pointer-events: none; display: none; background: var(--ink); color: var(--paper); font-size: .85rem; padding: 6px 9px; border-radius: 4px; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; transform: translate(12px, -50%); }
+  table.markers { width: 100%; border-collapse: collapse; font-size: .9rem; font-family: var(--mono); font-variant-numeric: tabular-nums; margin-top: 10px; }
+  table.markers th, table.markers td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--sage-3); white-space: nowrap; }
+  table.markers th { color: var(--ink-2); font-weight: 500; font-family: var(--font); }
+  table.markers td:first-child, table.markers th:first-child { text-align: left; }
+  table.markers button { border: none; background: none; color: var(--ink-3); padding: 0 4px; }
+  .marker-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+  .marker-tools .hint { margin: 0; }
+
+  .three { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  @media (max-width: 900px) { .three { grid-template-columns: 1fr; } }
+  .log { font-family: var(--mono); font-size: .8rem; line-height: 1.45; background: var(--sage-3); border-radius: var(--radius); padding: 10px 12px; height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--ink-2); }
+  .log .tx { color: var(--moss); } .log .err { color: var(--err); } .log .dim { color: var(--ink-3); }
+  .log-send { display: flex; gap: 8px; margin-top: 8px; }
+  .log-send input { flex: 1; padding: 6px 8px; border: 1px solid var(--sage-2); border-radius: var(--radius); background: var(--panel); font-family: var(--mono); }
+  .diag-out { font-family: var(--mono); font-size: .82rem; background: var(--sage-3); border-radius: var(--radius); padding: 10px 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; color: var(--ink-2); margin-top: 10px; }
+  code { font-family: var(--mono); font-size: .9em; background: var(--sage-3); padding: 1px 5px; border-radius: 3px; }
+  footer { margin-top: 36px; color: var(--ink-3); font-size: .9rem; }
+  footer a { color: var(--ink-2); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>nanoVNA Web</h1>
+    <p class="sub">Sweep a NanoVNA-F V2 or V3 from your browser. Traces, Smith chart, waterfall, markers, export.</p>
+  </div>
+  <nav>
+    <a href="#diagnostics">Diagnostics</a>
+    <a href="https://github.com/interactive-hardware-interfacing/nanovna-web">Source</a>
+    <a href="https://interactive-hardware-interfacing.github.io/">All tools</a>
+  </nav>
+</header>
+
+<div class="connect">
+  <button class="btn primary" id="connectBtn">Connect to NanoVNA</button>
+  <button class="btn" id="demoBtn">Try without hardware</button>
+  <label class="row" style="gap:6px"><span class="suffix">Model</span>
+    <select class="model" id="modelSel" aria-label="Model envelope">
+      <option value="auto">Detect from device</option>
+      <option value="NANOVNA_F_V2">NanoVNA-F V2</option>
+      <option value="NANOVNA_F_V3">NanoVNA-F V3</option>
+      <option value="NANOVNA_H4">NanoVNA-H4</option>
+      <option value="NANOVNA_GENERIC">Generic / other</option>
+    </select>
+  </label>
+  <span class="status" id="status"><span class="dot"></span><span id="statusText">Not connected</span></span>
+</div>
+<p class="notice hidden" id="noSerial">This browser can't open USB serial ports. Use <b>Chrome</b> or <b>Edge</b> on a laptop or desktop to connect. The demo works anywhere.</p>
+
+<div class="bench">
+  <!-- ---------------------------------------------------------- sweep panel -->
+  <div>
+    <section class="panel" aria-label="Sweep">
+      <h2>Sweep</h2>
+      <div class="two-col">
+        <div class="field"><label for="fStart">Start</label><div class="row"><input type="number" id="fStart" value="1" min="0.01" step="any"><span class="suffix">MHz</span></div></div>
+        <div class="field"><label for="fStop">Stop</label><div class="row"><input type="number" id="fStop" value="1500" min="0.01" step="any"><span class="suffix">MHz</span></div></div>
+      </div>
+      <div class="field">
+        <label>Points</label>
+        <div class="radios" id="ptsRadios">
+          <label><input type="radio" name="pts" value="max" checked> Model maximum (<span id="ptsMaxLabel">201</span>)</label>
+          <label><input type="radio" name="pts" value="quick"> Quick, for continuous (<span id="ptsQuickLabel">101</span>)</label>
+          <label><input type="radio" name="pts" value="custom"> Custom <input type="number" id="ptsCustom" value="201" min="11" step="1"></label>
+        </div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" id="singleBtn" disabled>Single sweep</button>
+        <button class="btn" id="contBtn" disabled aria-pressed="false">Continuous</button>
+      </div>
+      <dl class="kv" style="margin:12px 0 0">
+        <dt>Last sweep</dt><dd id="sweepTime">—</dd>
+        <dt>Device range</dt><dd id="devRange">—</dd>
+      </dl>
+    </section>
+
+    <section class="panel" aria-label="Reference impedance">
+      <h2>Reference impedance</h2>
+      <div class="field"><div class="row"><input type="number" id="z0" value="50" min="1" step="any" aria-label="Z0 in ohms"><span class="suffix">Ω · Z₀</span></div>
+      <p class="hint">Used for SWR, the Smith chart, and the R + jX readout. Touchstone files record it.</p></div>
+    </section>
+
+    <section class="panel" aria-label="Export">
+      <h2>Export</h2>
+      <div class="tools">
+        <button class="btn small" id="csvBtn" disabled>CSV</button>
+        <button class="btn small" id="s1pBtn" disabled>.s1p</button>
+        <button class="btn small" id="s2pBtn" disabled>.s2p</button>
+        <button class="btn small" id="pngBtn" disabled>Plot PNG</button>
+        <button class="btn small" id="shotBtn" disabled title="Reads the device's own screen over USB">Device screenshot</button>
+      </div>
+      <p class="hint">CSV includes derived columns (dB, phase, SWR, R, X). Touchstone is real/imaginary, Hz.</p>
+    </section>
+  </div>
+
+  <!-- ---------------------------------------------------------- plot -->
+  <div>
+    <section class="panel" aria-label="Plot">
+      <div class="chart-head">
+        <div class="views" role="group" aria-label="Trace view">
+          <button class="btn small" data-view="s11db" aria-pressed="true">|S11| dB</button>
+          <button class="btn small" data-view="s21db" aria-pressed="false">|S21| dB</button>
+          <button class="btn small" data-view="swr" aria-pressed="false">SWR</button>
+          <button class="btn small" data-view="phase" aria-pressed="false">Phase</button>
+          <button class="btn small" data-view="smith" aria-pressed="false">Smith</button>
+          <button class="btn small" data-view="waterfall" aria-pressed="false">Waterfall</button>
+        </div>
+        <div class="tools">
+          <button class="btn small" id="holdBtn" aria-pressed="false" title="Keep the current trace on screen for comparison">Hold</button>
+          <button class="btn small" id="clearBtn" disabled>Clear</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="chart-wrap">
+        <canvas id="plot" role="img" aria-label="VNA trace plot"></canvas>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="marker-tools">
+        <button class="btn small" id="minSwrBtn" disabled>Mark minimum SWR</button>
+        <button class="btn small" id="clearMarkersBtn" disabled>Clear markers</button>
+        <span class="hint">Click the plot to place a marker (up to 4).</span>
+      </div>
+      <table class="markers" id="markerTable">
+        <thead><tr><th>Marker</th><th>Frequency</th><th>|S11| dB</th><th>SWR</th><th>R</th><th>X</th><th>|S21| dB</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <div class="three">
+      <section class="panel" id="diagnostics" aria-label="Diagnostics">
+        <h2>Diagnostics</h2>
+        <p class="hint" style="margin:0 0 10px">Collects the raw replies to a fixed set of commands, with timings, into a file you can attach to a bug report. Takes a few seconds; no settings on the device are changed.</p>
+        <div class="tools">
+          <button class="btn small primary" id="diagBtn" disabled>Collect diagnostic sample</button>
+          <button class="btn small" id="diagDlBtn" disabled>Download JSON</button>
+        </div>
+        <div class="diag-out hidden" id="diagOut"></div>
+      </section>
+
+      <section class="panel" aria-label="Console">
+        <h2>Device console</h2>
+        <div class="log" id="log" aria-live="polite"></div>
+        <form class="log-send" id="sendForm">
+          <input id="sendInput" placeholder="Type a command, e.g. help" autocomplete="off" disabled>
+          <button class="btn small" id="sendBtn" disabled>Send</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+
+<footer>
+  nanoVNA Web v0.1.0 · Last updated <time id="updated" datetime="2026-10-17">2026-10-17</time> · Part of <a href="https://interactive-hardware-interfacing.github.io/">Interactive Hardware Interfacing</a>. Works in Chrome and Edge via Web Serial. <a href="https://github.com/interactive-hardware-interfacing/nanovna-web/blob/main/LICENSE">GPL-2.0</a>.<br>
+  Maintained by <a href="https://github.com/LC-Linkous">LC Linkous</a>. Companion to the <a href="https://github.com/LC-Linkous/nanoVNA_python">nanoVNA_python</a> library. Not affiliated with any NanoVNA manufacturer.
+</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ================================================================ model envelopes
+// Ported from nvnapython/constants.py — the library's checking envelope, not
+// live device state. Only what the page validates against.
+const MODELS = {
+  NANOVNA_F_V2:      { name: 'NanoVNA-F V2', minHz: 50e3, maxHz: 3e9,   minPts: 11, maxPts: 201, quick: 101, screen: [800, 480] },
+  NANOVNA_F_V3:      { name: 'NanoVNA-F V3', minHz: 50e3, maxHz: 6e9,   minPts: 51, maxPts: 801, quick: 101, screen: [800, 480] },
+  NANOVNA_H4:        { name: 'NanoVNA-H4',   minHz: 10e3, maxHz: 1.5e9, minPts: 11, maxPts: 101, quick: 51,  screen: [320, 480] },
+  NANOVNA_GENERIC:   { name: 'Generic',      minHz: 10e3, maxHz: 1.5e9, minPts: 11, maxPts: 101, quick: 51,  screen: [320, 240] },
+};
+const USB_FILTER = [{ usbVendorId: 0x0483, usbProductId: 0x5740 }];   // STM32 VCP — shared with tinySA
+const PROMPT = 'ch>';
+const MAX_MARKERS = 4;
+const WATERFALL_ROWS = 160;
+
+// ================================================================ dom
+const $ = id => document.getElementById(id);
+const ui = {
+  connectBtn: $('connectBtn'), demoBtn: $('demoBtn'), modelSel: $('modelSel'), status: $('status'), statusText: $('statusText'), noSerial: $('noSerial'),
+  fStart: $('fStart'), fStop: $('fStop'), ptsRadios: $('ptsRadios'), ptsCustom: $('ptsCustom'), ptsMaxLabel: $('ptsMaxLabel'), ptsQuickLabel: $('ptsQuickLabel'),
+  singleBtn: $('singleBtn'), contBtn: $('contBtn'), sweepTime: $('sweepTime'), devRange: $('devRange'), z0: $('z0'),
+  csvBtn: $('csvBtn'), s1pBtn: $('s1pBtn'), s2pBtn: $('s2pBtn'), pngBtn: $('pngBtn'), shotBtn: $('shotBtn'),
+  views: [...document.querySelectorAll('.views button')], holdBtn: $('holdBtn'), clearBtn: $('clearBtn'), legend: $('legend'),
+  canvas: $('plot'), tip: $('tip'), minSwrBtn: $('minSwrBtn'), clearMarkersBtn: $('clearMarkersBtn'), markerBody: $('markerTable').querySelector('tbody'),
+  diagBtn: $('diagBtn'), diagDlBtn: $('diagDlBtn'), diagOut: $('diagOut'),
+  log: $('log'), sendForm: $('sendForm'), sendInput: $('sendInput'), sendBtn: $('sendBtn'),
+};
+
+// ================================================================ state
+const state = {
+  link: null, model: 'NANOVNA_F_V2', ident: { version: '', info: '' },
+  sweep: null,          // { f: Float64Array, s11: [re,im]..., s21: [...], t, ms }
+  held: null,           // a frozen copy of a sweep for comparison
+  history: [],          // waterfall rows: Float32Array of |S11| dB
+  markers: [],          // frequencies in Hz
+  view: 's11db', continuous: false, busy: false,
+  diag: null,
+};
+const env = () => MODELS[state.model];
+const z0 = () => Math.max(1, parseFloat(ui.z0.value) || 50);
+
+// ================================================================ log
+function log(line, cls) {
+  const el = document.createElement('div'); if (cls) el.className = cls;
+  el.textContent = line; ui.log.appendChild(el);
+  while (ui.log.childElementCount > 500) ui.log.firstChild.remove();
+  ui.log.scrollTop = ui.log.scrollHeight;
+}
+const esc = s => s.replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+
+// ================================================================ shell link
+// The NanoVNA console: send "cmd\r\n", device echoes it, replies, then prints
+// the prompt "ch>" — often twice ("ch> \r\nch> "). Rules ported from
+// nvnapython core.py: a reply is complete when the buffer, right-trimmed, ends
+// with the prompt; then wait a short settle for the doubled prompt and drain.
+class ShellLink {
+  constructor() { this.buf = new Uint8Array(0); this.waiter = null; this.closed = false; this.dec = new TextDecoder(); }
+  _feed(bytes) {
+    const n = new Uint8Array(this.buf.length + bytes.length); n.set(this.buf); n.set(bytes, this.buf.length); this.buf = n;
+    if (this.waiter) this.waiter();
+  }
+  _take() { const b = this.buf; this.buf = new Uint8Array(0); return b; }
+  _text(b) { return this.dec.decode(b); }
+  _wait(ms) { return new Promise(res => { const t = setTimeout(() => { this.waiter = null; res(false); }, ms); this.waiter = () => { clearTimeout(t); this.waiter = null; res(true); }; }); }
+  async _flush() { await new Promise(r => setTimeout(r, 15)); this._take(); }
+
+  // Send a command and return the reply text with echo and prompt(s) removed.
+  async command(cmd, { timeoutMs = 6000, settleMs = 40, quiet = false } = {}) {
+    await this._flush();
+    if (!quiet) log('> ' + cmd, 'tx');
+    const t0 = performance.now();
+    await this._write(cmd + '\r\n');
+    let last = performance.now();
+    while (true) {
+      const text = this._text(this.buf);
+      if (text.replace(/[\s\0]+$/, '').endsWith(PROMPT)) {
+        // doubled-prompt settle: give the second "ch> " a moment to land, then take everything
+        let more = true; while (more) more = await this._wait(settleMs);
+        break;
+      }
+      const got = await this._wait(Math.max(10, timeoutMs - (performance.now() - last)));
+      if (got) last = performance.now();
+      else if (performance.now() - last >= timeoutMs) throw new Error(`no "${PROMPT}" prompt after ${cmd} (${timeoutMs} ms)`);
+    }
+    const raw = this._text(this._take());
+    const ms = performance.now() - t0;
+    const body = ShellLink.strip(raw, cmd);
+    if (!quiet) body.split('\n').filter(l => l.length).slice(0, 12).forEach(l => log(l));
+    if (!quiet && body.split('\n').length > 12) log(`… ${body.split('\n').length - 12} more lines (${ms.toFixed(0)} ms)`, 'dim');
+    return { body, raw, ms };
+  }
+  // Commands that never return a prompt (nvnapython: "save N" on the F V2).
+  async commandNoPrompt(cmd) { await this._flush(); log('> ' + cmd, 'tx'); await this._write(cmd + '\r\n'); await new Promise(r => setTimeout(r, 300)); const raw = this._text(this._take()); return { body: ShellLink.strip(raw, cmd), raw, ms: 300 }; }
+  // Binary read: skip the echo, then read exactly n bytes, then wait for the prompt.
+  async commandBinary(cmd, n, { timeoutMs = 15000 } = {}) {
+    await this._flush(); log('> ' + cmd + `  (binary, ${n} bytes)`, 'tx');
+    const t0 = performance.now(); await this._write(cmd + '\r\n');
+    const echo = new TextEncoder().encode(cmd + '\r\n');
+    let last = performance.now();
+    while (true) {
+      const b = this.buf;
+      // find the echo once; the payload starts right after it (firmware echoes "cmd\r\n")
+      let start = 0;
+      if (b.length >= echo.length) { let m = true; for (let i = 0; i < echo.length; i++) if (b[i] !== echo[i]) { m = false; break; } if (m) start = echo.length; }
+      if (b.length - start >= n) {
+        const payload = b.slice(start, start + n);
+        let more = true; while (more) more = await this._wait(60);   // swallow the trailing prompt
+        this._take(); return { payload, ms: performance.now() - t0 };
+      }
+      const got = await this._wait(Math.max(10, timeoutMs - (performance.now() - last)));
+      if (got) last = performance.now(); else if (performance.now() - last >= timeoutMs) throw new Error(`binary read of ${n} bytes stalled at ${b.length - start}`);
+    }
+  }
+  static strip(raw, cmd) {
+    let t = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = t.split('\n');
+    if (lines.length && lines[0].trim() === cmd.trim()) lines.shift();            // echo
+    while (lines.length && /^\s*(ch>)?\s*$/.test(lines[lines.length - 1])) lines.pop();  // prompts / blanks
+    return lines.map(l => l.replace(/^ch>\s*/, '')).join('\n').replace(/\s*ch>\s*$/, '');
+  }
+}
+
+class SerialLink extends ShellLink {
+  constructor() { super(); this.port = null; this.reader = null; this.writer = null; }
+  async open() {
+    this.port = await navigator.serial.requestPort({ filters: USB_FILTER });
+    await this.port.open({ baudRate: 115200 });
+    this.writer = this.port.writable.getWriter();
+    this.readLoop();
+  }
+  async readLoop() {
+    try {
+      this.reader = this.port.readable.getReader();
+      while (true) { const { value, done } = await this.reader.read(); if (done) break; this._feed(value); }
+    } catch (e) { if (!this.closed) { log('port error: ' + e.message, 'err'); disconnect(true); } }
+  }
+  _write(s) { return this.writer.write(new TextEncoder().encode(s)); }
+  info() { try { const i = this.port.getInfo(); return `vid ${i.usbVendorId?.toString(16)} pid ${i.usbProductId?.toString(16)}`; } catch { return 'n/a'; } }
+  async close() { this.closed = true; try { if (this.reader) { await this.reader.cancel(); this.reader.releaseLock(); } } catch {} try { this.writer?.releaseLock(); } catch {} try { await this.port?.close(); } catch {} }
+}
+
+// Simulated NanoVNA-F V3 console. Produces the same byte stream (echo, body,
+// doubled prompt) so the ShellLink parser is exercised, not bypassed.
+class DemoLink extends ShellLink {
+  constructor() { super(); this.model = 'NANOVNA_F_V3'; this.sweepStart = 50e3; this.sweepStop = 900e6; this.sweepPts = 101; this.enc = new TextEncoder(); this.f0 = 433e6; }
+  async open() { log('demo NanoVNA-F V3 ready (no hardware)', 'tx'); }
+  info() { return 'demo'; }
+  async close() {}
+  _reply(cmd, body, delay) {
+    const out = cmd + '\r\n' + (body ? body + '\r\n' : '') + 'ch> \r\nch> ';
+    const bytes = this.enc.encode(out);
+    // trickle in chunks like a real CDC endpoint would
+    let i = 0; const step = () => { if (i >= bytes.length) return; this._feed(bytes.slice(i, i + 512)); i += 512; setTimeout(step, 2); };
+    setTimeout(step, delay);
+  }
+  // Dipole-ish S11 (series RLC, two resonances) + bandpass S21.
+  s11(f) {
+    const Z0 = 50; let R = 20, X = 0;
+    for (const [f0, Rr, Q] of [[this.f0, 73, 12], [this.f0 * 2.95, 95, 9]]) {
+      const d = f / f0 - f0 / f; const Zr = Rr * Q * d;  // reactance of a series resonator
+      const w = 1 / (1 + Math.pow(Math.abs(d) * Q, 2)); R += (Rr - 20) * w; X += Zr * w * 1.4;
+    }
+    X += 2 * Math.PI * f * 12e-9 - 1 / (2 * Math.PI * f * 220e-12) * 0.0; // small series L
+    const num = { re: R - Z0, im: X }, den = { re: R + Z0, im: X };
+    const d2 = den.re * den.re + den.im * den.im;
+    const g = { re: (num.re * den.re + num.im * den.im) / d2, im: (num.im * den.re - num.re * den.im) / d2 };
+    const n = () => (Math.random() - 0.5) * 0.004; return [g.re + n(), g.im + n()];
+  }
+  s21(f) { const fc = 868e6, bw = 60e6; const x = (f - fc) / (bw / 2); const mag = Math.pow(10, (-1.2 - 30 * Math.log10(1 + x * x)) / 20); const ph = -2 * Math.PI * f * 2.5e-9 - Math.atan(x); const n = () => (Math.random() - 0.5) * 0.002; return [mag * Math.cos(ph) + n(), mag * Math.sin(ph) + n()]; }
+  _write(s) {
+    const cmd = s.trim(); const [c, ...a] = cmd.split(/\s+/); const lc = c.toLowerCase(); let body = '', delay = 8;
+    switch (lc) {
+      case 'version': body = 'NanoVNA-F_V3 v1.0.6 (demo)'; break;
+      case 'info': body = 'Board: NanoVNA-F V3 (simulated)\nFrequency range: 50 kHz - 6.3 GHz\nSweep points: 51-801\nBuild: demo'; break;
+      case 'sn': body = 'DEMO-0000-0000'; break;
+      case 'help': body = 'Commands: version info SN help sweep frequencies data scan pause resume cal save recall capture'; break;
+      case 'pause': case 'resume': break;
+      case 'sweep':
+        if (a.length >= 2) { this.sweepStart = +a[0]; this.sweepStop = +a[1]; if (a[2]) this.sweepPts = +a[2]; } else body = `${this.sweepStart} ${this.sweepStop} ${this.sweepPts}`; break;
+      case 'frequencies': { const L = []; for (let i = 0; i < this.sweepPts; i++) L.push(Math.round(this.sweepStart + (this.sweepStop - this.sweepStart) * i / (this.sweepPts - 1))); body = L.join('\n'); break; }
+      case 'data': { const ch = +(a[0] || 0); const L = []; for (let i = 0; i < this.sweepPts; i++) { const f = this.sweepStart + (this.sweepStop - this.sweepStart) * i / (this.sweepPts - 1); const v = ch === 1 ? this.s21(f) : this.s11(f); L.push(v[0].toFixed(6) + ' ' + v[1].toFixed(6)); } body = L.join('\n'); break; }
+      case 'scan': {
+        const st = +a[0], sp = +a[1], pts = +(a[2] || this.sweepPts), mask = +(a[3] || 0);
+        if (!(st < sp)) { body = 'scan: start must be < stop'; break; }
+        const L = []; for (let i = 0; i < pts; i++) { const f = st + (sp - st) * i / (pts - 1); const p = []; if (mask & 1) p.push(Math.round(f)); if (mask & 2) { const v = this.s11(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); } if (mask & 4) { const v = this.s21(f); p.push(v[0].toFixed(6), v[1].toFixed(6)); } if (p.length) L.push(p.join(' ')); }
+        body = L.join('\n'); delay = 40 + pts * 1.1; break; }
+      case 'capture': { // synthetic 800x480 RGB565 frame: gradient + a trace line
+        const [W, H] = [800, 480]; const buf = new Uint8Array(W * H * 2);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 2; const g = this.s11(50e3 + (6e9 - 50e3) * x / W); const db = 20 * Math.log10(Math.hypot(g[0], g[1]) + 1e-9); const ty = Math.round(H * 0.15 + (-db / 60) * H * 0.7); const on = Math.abs(y - ty) < 2; const r = on ? 31 : 2, gg = on ? 63 : (y >> 4), b = on ? 10 : 8; const v = (r << 11) | (gg << 5) | b; buf[i] = v & 255; buf[i + 1] = v >> 8; }
+        const head = this.enc.encode(cmd + '\r\n'), tail = this.enc.encode('ch> \r\nch> ');
+        const all = new Uint8Array(head.length + buf.length + tail.length); all.set(head); all.set(buf, head.length); all.set(tail, head.length + buf.length);
+        let i = 0; const step = () => { if (i >= all.length) return; this._feed(all.slice(i, i + 8192)); i += 8192; setTimeout(step, 1); }; setTimeout(step, 20); return Promise.resolve(); }
+      default: body = `${c}?`; break;
+    }
+    this._reply(cmd, body, delay); return Promise.resolve();
+  }
+}
+
+// ================================================================ connect / identify
+function setStatus(t, cls) { ui.statusText.textContent = t; ui.status.className = 'status ' + (cls || ''); }
+function setEnabled(on) {
+  [ui.singleBtn, ui.contBtn, ui.sendInput, ui.sendBtn, ui.diagBtn, ui.shotBtn].forEach(e => e.disabled = !on);
+  ui.demoBtn.disabled = on && state.link instanceof SerialLink;
+  ui.connectBtn.textContent = on ? 'Disconnect' : 'Connect to NanoVNA';
+}
+function detectModel(version, info) {
+  const t = (version + '\n' + info).toLowerCase();
+  if (/f[ _-]?v3|nanovna-f_v3/.test(t)) return 'NANOVNA_F_V3';
+  if (/f[ _-]?v2|nanovna-f_v2|nanovna-f\b/.test(t)) return 'NANOVNA_F_V2';
+  if (/-h4|h4\b/.test(t)) return 'NANOVNA_H4';
+  return 'NANOVNA_GENERIC';
+}
+function applyModel(key) {
+  state.model = key; const m = env();
+  ui.ptsMaxLabel.textContent = m.maxPts; ui.ptsQuickLabel.textContent = m.quick;
+  ui.ptsCustom.min = m.minPts; ui.ptsCustom.max = m.maxPts; if (+ui.ptsCustom.value > m.maxPts) ui.ptsCustom.value = m.maxPts;
+  ui.devRange.textContent = `${fmtHz(m.minHz)} – ${fmtHz(m.maxHz)}, ${m.minPts}–${m.maxPts} pts`;
+  if (ui.modelSel.value !== 'auto' && ui.modelSel.value !== key) ui.modelSel.value = key;
+}
+async function connect(demo) {
+  if (state.link) return;
+  const link = demo ? new DemoLink() : new SerialLink();
+  try {
+    await link.open();
+    const v = await link.command('version', { timeoutMs: 3000 });
+    const i = await link.command('info', { timeoutMs: 3000 });
+    state.ident = { version: v.body.trim(), info: i.body.trim() };
+    if (!/nanovna|ch>|version/i.test(v.raw + i.raw) || !v.raw.includes(PROMPT)) throw new Error('that port did not answer like a NanoVNA console');
+    state.link = link;
+    const key = ui.modelSel.value === 'auto' ? detectModel(state.ident.version, state.ident.info) : ui.modelSel.value;
+    applyModel(key);
+    await link.command('pause', { timeoutMs: 2000 }).catch(() => {});   // robust-loop pattern: pause the device's own sweep once
+    setStatus(`${demo ? 'Demo · ' : 'Connected · '}${state.ident.version.split('\n')[0] || env().name} · as ${env().name}`, demo ? 'demo' : 'ok');
+    setEnabled(true);
+  } catch (e) {
+    log('connect failed: ' + e.message, 'err'); setStatus('Connection failed — ' + e.message, 'err');
+    try { await link.close(); } catch {}
+  }
+}
+async function disconnect(silent) {
+  if (!state.link) return;
+  const link = state.link; state.continuous = false; ui.contBtn.setAttribute('aria-pressed', 'false');
+  try { if (!silent) await link.command('resume', { timeoutMs: 1500 }); } catch {}
+  await link.close(); state.link = null; setEnabled(false); setStatus('Not connected', '');
+}
+
+// ================================================================ sweep
+function sweepParams() {
+  const m = env();
+  let st = parseFloat(ui.fStart.value) * 1e6, sp = parseFloat(ui.fStop.value) * 1e6;
+  st = clamp(st, m.minHz, m.maxHz); sp = clamp(sp, m.minHz, m.maxHz);
+  if (!(st < sp)) { sp = Math.min(m.maxHz, st + 1e6); }
+  const mode = document.querySelector('input[name=pts]:checked').value;
+  let pts = mode === 'max' ? m.maxPts : mode === 'quick' ? m.quick : Math.round(+ui.ptsCustom.value || m.maxPts);
+  pts = clamp(pts, m.minPts, m.maxPts);
+  return { st: Math.round(st), sp: Math.round(sp), pts };
+}
+function parseScan(body, pts) {
+  const f = new Float64Array(pts), s11 = new Float64Array(pts * 2), s21 = new Float64Array(pts * 2);
+  let n = 0;
+  for (const line of body.split('\n')) {
+    const v = line.trim().split(/\s+/); if (v.length < 5 || n >= pts) continue;
+    const nums = v.map(Number); if (nums.some(x => !isFinite(x))) continue;
+    f[n] = nums[0]; s11[2 * n] = nums[1]; s11[2 * n + 1] = nums[2]; s21[2 * n] = nums[3]; s21[2 * n + 1] = nums[4]; n++;
+  }
+  return n === pts ? { f, s11, s21 } : null;
+}
+async function doSweep() {
+  if (!state.link || state.busy) return null;
+  const { st, sp, pts } = sweepParams();
+  state.busy = true; ui.singleBtn.disabled = true;
+  try {
+    let parsed = null, r = null;
+    for (let attempt = 0; attempt < 2 && !parsed; attempt++) {           // validate / retry once / skip
+      r = await state.link.command(`scan ${st} ${sp} ${pts} 7`, { timeoutMs: 15000, quiet: true });
+      parsed = parseScan(r.body, pts);
+      if (!parsed) log(`scan returned ${r.body.split('\n').filter(Boolean).length} usable lines, expected ${pts}${attempt ? '' : ' — retrying'}`, 'err');
+    }
+    if (!parsed) return null;
+    state.sweep = { ...parsed, pts, st, sp, t: Date.now(), ms: r.ms };
+    ui.sweepTime.textContent = `${(r.ms / 1000).toFixed(2)} s · ${pts} pts`;
+    log(`scan ${st} ${sp} ${pts} 7 → ${pts} points in ${r.ms.toFixed(0)} ms`, 'dim');
+    pushWaterfall(state.sweep);
+    [ui.csvBtn, ui.s1pBtn, ui.s2pBtn, ui.pngBtn, ui.clearBtn, ui.minSwrBtn, ui.clearMarkersBtn].forEach(b => b.disabled = false);
+    chart.dirty = true; renderMarkers();
+    return state.sweep;
+  } catch (e) { log('sweep failed: ' + e.message, 'err'); return null; }
+  finally { state.busy = false; ui.singleBtn.disabled = !state.link; }
+}
+async function continuousLoop() {
+  while (state.continuous && state.link) { const s = await doSweep(); if (!s) await new Promise(r => setTimeout(r, 500)); else await new Promise(r => setTimeout(r, 30)); }
+}
+function pushWaterfall(sw) {
+  const row = new Float32Array(sw.pts); for (let i = 0; i < sw.pts; i++) row[i] = db(sw.s11[2 * i], sw.s11[2 * i + 1]);
+  if (state.history.length && state.history[0].length !== sw.pts) state.history = [];
+  state.history.unshift(row); if (state.history.length > WATERFALL_ROWS) state.history.pop();
+}
+
+// ================================================================ math
+const clamp = (v, a, b) => Math.min(b, Math.max(a, isFinite(v) ? v : a));
+const db = (re, im) => { const m = Math.hypot(re, im); return m > 0 ? 20 * Math.log10(m) : -240; };
+const phaseDeg = (re, im) => Math.atan2(im, re) * 180 / Math.PI;
+const swrOf = (re, im) => { const m = Math.min(0.999999, Math.hypot(re, im)); return (1 + m) / (1 - m); };
+function zOf(re, im) { const Z = z0(); const dre = 1 - re, dim = -im, d = dre * dre + dim * dim; const nre = 1 + re, nim = im; return { r: Z * (nre * dre + nim * dim) / d, x: Z * (nim * dre - nre * dim) / d }; }
+function fmtHz(f) { return f >= 1e9 ? (f / 1e9).toFixed(3) + ' GHz' : f >= 1e6 ? (f / 1e6).toFixed(3) + ' MHz' : f >= 1e3 ? (f / 1e3).toFixed(1) + ' kHz' : f.toFixed(0) + ' Hz'; }
+function nearestIndex(sw, fHz) { let b = 0, bd = Infinity; for (let i = 0; i < sw.pts; i++) { const d = Math.abs(sw.f[i] - fHz); if (d < bd) { bd = d; b = i; } } return b; }
+
+// ================================================================ chart
+const chart = { dirty: true, hover: null, geom: null };
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function niceStep(range, target) { const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+const VIEWS = {
+  s11db:    { label: '|S11| (dB)',  y: (sw, i) => db(sw.s11[2 * i], sw.s11[2 * i + 1]), range: [-60, 0], color: '--s11' },
+  s21db:    { label: '|S21| (dB)',  y: (sw, i) => db(sw.s21[2 * i], sw.s21[2 * i + 1]), range: [-80, 10], color: '--s21' },
+  swr:      { label: 'SWR',         y: (sw, i) => swrOf(sw.s11[2 * i], sw.s11[2 * i + 1]), range: [1, 10], color: '--s11' },
+  phase:    { label: 'S11 phase (°)', y: (sw, i) => phaseDeg(sw.s11[2 * i], sw.s11[2 * i + 1]), range: [-180, 180], color: '--s11' },
+};
+
+function renderChart() {
+  const c = ui.canvas, dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
+  if (c.width !== W * dpr || c.height !== H * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  ctx.font = '12px ' + cssVar('--font');
+  const sw = state.sweep;
+  if (!sw) { ctx.fillStyle = cssVar('--ink-3'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(state.link ? 'Run a sweep.' : 'Connect a NanoVNA or try the demo.', W / 2, H / 2); chart.geom = null; return; }
+  if (state.view === 'smith') return renderSmith(ctx, W, H, sw);
+  if (state.view === 'waterfall') return renderWaterfall(ctx, W, H, sw);
+  const V = VIEWS[state.view];
+  const pad = { l: 56, r: 16, t: 12, b: 40 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  // y range: fixed per view, but expand for data (phase/swr stay fixed)
+  let [y0, y1] = V.range;
+  if (state.view === 's11db' || state.view === 's21db') { let mn = Infinity, mx = -Infinity; for (let i = 0; i < sw.pts; i++) { const y = V.y(sw, i); if (y > -200) { mn = Math.min(mn, y); mx = Math.max(mx, y); } } if (isFinite(mn)) { y0 = Math.min(y0, Math.floor(mn / 10) * 10); y1 = Math.max(y1, Math.ceil(mx / 10) * 10); } }
+  const sx = f => pad.l + (f - sw.st) / (sw.sp - sw.st) * pw, sy = y => pad.t + ph - (clamp(y, y0, y1) - y0) / (y1 - y0) * ph;
+  chart.geom = { sx, sy, pad, pw, ph, fx: x => sw.st + (x - pad.l) / pw * (sw.sp - sw.st) };
+  // grid
+  ctx.strokeStyle = cssVar('--sage-3'); ctx.lineWidth = 1; ctx.fillStyle = cssVar('--ink-2');
+  const fs = niceStep(sw.sp - sw.st, 8); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let f = Math.ceil(sw.st / fs) * fs; f <= sw.sp + 1; f += fs) { const x = sx(f); ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke(); ctx.fillText(fmtHz(f).replace(/\.?0+ (\w)/, ' $1'), x, pad.t + ph + 6); }
+  const ys = niceStep(y1 - y0, 6); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let y = Math.ceil(y0 / ys) * ys; y <= y1 + 1e-9; y += ys) { const yy = sy(y); ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke(); ctx.fillText(+y.toFixed(2), pad.l - 8, yy); }
+  ctx.strokeStyle = cssVar('--sage'); ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+  ctx.save(); ctx.translate(14, pad.t + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(V.label, 0, 0); ctx.restore();
+  // held trace (dashed, muted)
+  const drawTrace = (s, col, dash) => { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath(); for (let i = 0; i < s.pts; i++) { const x = sx(s.f[i]), y = sy(V.y(s, i)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); ctx.setLineDash([]); };
+  if (state.held && state.held.st === sw.st && state.held.sp === sw.sp) drawTrace(state.held, cssVar('--ink-3'), [5, 4]);
+  drawTrace(sw, cssVar(V.color), []);
+  // markers
+  state.markers.forEach((mf, k) => { const i = nearestIndex(sw, mf), x = sx(sw.f[i]), y = sy(V.y(sw, i)); drawMarkerGlyph(ctx, x, y, k + 1); });
+  if (chart.hover != null) { const i = chart.hover, x = sx(sw.f[i]); ctx.strokeStyle = cssVar('--ink-3'); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke(); ctx.setLineDash([]); }
+}
+function drawMarkerGlyph(ctx, x, y, n) {
+  ctx.fillStyle = cssVar('--ink'); ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x + 7, y + 6); ctx.lineTo(x - 7, y + 6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = cssVar('--panel'); ctx.beginPath(); ctx.moveTo(x, y - 3.5); ctx.lineTo(x + 3.5, y + 3); ctx.lineTo(x - 3.5, y + 3); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = cssVar('--ink'); ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.font = 'bold 12px ' + cssVar('--font'); ctx.fillText(String(n), x, y - 9); ctx.font = '12px ' + cssVar('--font');
+}
+function renderSmith(ctx, W, H, sw) {
+  const R = Math.min(W, H) / 2 - 24, cx = W / 2, cy = H / 2;
+  const gx = (re, im) => [cx + re * R, cy - im * R];
+  chart.geom = { smith: true, cx, cy, R, gx };
+  ctx.lineWidth = 1; ctx.strokeStyle = cssVar('--sage-3'); ctx.fillStyle = cssVar('--ink-3');
+  // constant-resistance circles and constant-reactance arcs, normalised to Z0
+  for (const r of [0.2, 0.5, 1, 2, 5]) { const c = r / (1 + r), rad = 1 / (1 + r); ctx.beginPath(); ctx.arc(cx + c * R, cy, rad * R, 0, 2 * Math.PI); ctx.stroke(); }
+  for (const x of [0.2, 0.5, 1, 2, 5]) for (const s of [1, -1]) { const rad = 1 / x; ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.clip(); ctx.beginPath(); ctx.arc(cx + R, cy - s * rad * R, rad * R, 0, 2 * Math.PI); ctx.stroke(); ctx.restore(); }
+  ctx.strokeStyle = cssVar('--sage'); ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = cssVar('--ink-2');
+  for (const r of [0, 0.2, 0.5, 1, 2, 5]) { const g = (r - 1) / (r + 1); ctx.fillText(String(r * z0()).replace(/\.0+$/, ''), cx + g * R, cy + 4); }
+  ctx.fillText('Ω', cx + R + 6, cy + 4);
+  const drawT = (s, col, dash) => { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath(); for (let i = 0; i < s.pts; i++) { const [x, y] = gx(s.s11[2 * i], s.s11[2 * i + 1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); ctx.setLineDash([]); };
+  if (state.held) drawT(state.held, cssVar('--ink-3'), [5, 4]);
+  drawT(sw, cssVar('--s11'), []);
+  // start / stop dots
+  const [x0, y0] = gx(sw.s11[0], sw.s11[1]); ctx.fillStyle = cssVar('--s11'); ctx.beginPath(); ctx.arc(x0, y0, 4, 0, 2 * Math.PI); ctx.fill();
+  ctx.fillStyle = cssVar('--ink-2'); ctx.textAlign = 'left'; ctx.fillText('start', x0 + 7, y0 - 6);
+  state.markers.forEach((mf, k) => { const i = nearestIndex(sw, mf); const [x, y] = gx(sw.s11[2 * i], sw.s11[2 * i + 1]); drawMarkerGlyph(ctx, x, y, k + 1); });
+  if (chart.hover != null) { const i = chart.hover; const [x, y] = gx(sw.s11[2 * i], sw.s11[2 * i + 1]); ctx.strokeStyle = cssVar('--ink'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 7, 0, 2 * Math.PI); ctx.stroke(); }
+}
+// one-hue sequential ramp (light -> dark) for the waterfall; strong signal = dark
+function rampColor(t) { const dark = document.documentElement.getAttribute('data-theme') === 'dark' || (matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.getAttribute('data-theme') !== 'light'); const a = dark ? [26, 35, 45] : [233, 239, 247], b = dark ? [122, 170, 236] : [31, 63, 140]; const c = a.map((v, i) => Math.round(v + (b[i] - v) * t)); return `rgb(${c[0]},${c[1]},${c[2]})`; }
+function renderWaterfall(ctx, W, H, sw) {
+  const pad = { l: 56, r: 16, t: 12, b: 40 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const traceH = Math.round(ph * 0.3), wfTop = pad.t + traceH + 10, wfH = ph - traceH - 10;
+  // top: current |S11| trace
+  const sx = f => pad.l + (f - sw.st) / (sw.sp - sw.st) * pw, sy = y => pad.t + traceH - (clamp(y, -60, 0) + 60) / 60 * traceH;
+  chart.geom = { sx, sy, pad, pw, ph: traceH, fx: x => sw.st + (x - pad.l) / pw * (sw.sp - sw.st) };
+  ctx.strokeStyle = cssVar('--sage'); ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + traceH); ctx.lineTo(pad.l + pw, pad.t + traceH); ctx.stroke();
+  ctx.fillStyle = cssVar('--ink-2'); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('0', pad.l - 8, sy(0)); ctx.fillText('-60', pad.l - 8, sy(-60)); ctx.fillText('dB', pad.l - 8, sy(-30));
+  ctx.strokeStyle = cssVar('--s11'); ctx.lineWidth = 2; ctx.beginPath(); for (let i = 0; i < sw.pts; i++) { const x = sx(sw.f[i]), y = sy(db(sw.s11[2 * i], sw.s11[2 * i + 1])); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+  // bottom: history, newest at top
+  // dark = deep null (low |S11|, good match) — the feature an antenna tuner is watching for
+  const rows = state.history, rh = wfH / Math.max(40, Math.min(WATERFALL_ROWS, rows.length));
+  for (let r = 0; r < rows.length; r++) { const row = rows[r], y = wfTop + r * rh; for (let i = 0; i < row.length; i++) { const t = clamp(-row[i] / 40, 0, 1); ctx.fillStyle = rampColor(t); const x0 = pad.l + i / row.length * pw, x1 = pad.l + (i + 1) / row.length * pw; ctx.fillRect(x0, y, Math.max(1, x1 - x0 + 0.5), rh + 0.5); } }
+  ctx.strokeStyle = cssVar('--sage'); ctx.strokeRect(pad.l, wfTop, pw, wfH);
+  ctx.fillStyle = cssVar('--ink-2'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const fs = niceStep(sw.sp - sw.st, 8); for (let f = Math.ceil(sw.st / fs) * fs; f <= sw.sp + 1; f += fs) ctx.fillText(fmtHz(f).replace(/\.?0+ (\w)/, ' $1'), sx(f), wfTop + wfH + 6);
+  ctx.save(); ctx.translate(14, wfTop + wfH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${rows.length} sweeps, newest at top`, 0, 0); ctx.restore();
+  state.markers.forEach((mf, k) => { const i = nearestIndex(sw, mf); drawMarkerGlyph(ctx, sx(sw.f[i]), sy(db(sw.s11[2 * i], sw.s11[2 * i + 1])), k + 1); });
+}
+function tick() { if (chart.dirty) { chart.dirty = false; renderChart(); } requestAnimationFrame(tick); }
+new ResizeObserver(() => chart.dirty = true).observe(ui.canvas);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { chart.dirty = true; buildLegend(); });
+
+// hover + click
+function pointAt(e) {
+  const sw = state.sweep, g = chart.geom; if (!sw || !g) return null;
+  const r = ui.canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (g.smith) { let b = null, bd = 18 * 18; for (let i = 0; i < sw.pts; i++) { const [x, y] = g.gx(sw.s11[2 * i], sw.s11[2 * i + 1]); const d = (x - mx) ** 2 + (y - my) ** 2; if (d < bd) { bd = d; b = i; } } return b; }
+  if (mx < g.pad.l || mx > g.pad.l + g.pw) return null;
+  return nearestIndex(sw, g.fx(mx));
+}
+ui.canvas.addEventListener('pointermove', e => {
+  const i = pointAt(e); if (i !== chart.hover) { chart.hover = i; chart.dirty = true; }
+  if (i == null) { ui.tip.style.display = 'none'; return; }
+  const sw = state.sweep, re = sw.s11[2 * i], im = sw.s11[2 * i + 1], z = zOf(re, im);
+  ui.tip.style.display = 'block';
+  const g = chart.geom; let x, y; if (g.smith) [x, y] = g.gx(re, im); else { x = g.sx(sw.f[i]); y = (state.view === 'waterfall' ? g.sy(db(re, im)) : g.sy(VIEWS[state.view].y(sw, i))); }
+  ui.tip.style.left = x + 'px'; ui.tip.style.top = y + 'px';
+  ui.tip.textContent = `${fmtHz(sw.f[i])}  ${db(re, im).toFixed(2)} dB  SWR ${swrOf(re, im).toFixed(2)}  ${z.r.toFixed(1)} ${z.x >= 0 ? '+' : '−'} j${Math.abs(z.x).toFixed(1)} Ω`;
+});
+ui.canvas.addEventListener('pointerleave', () => { chart.hover = null; chart.dirty = true; ui.tip.style.display = 'none'; });
+ui.canvas.addEventListener('click', e => { const i = pointAt(e); if (i == null || !state.sweep) return; if (state.markers.length >= MAX_MARKERS) state.markers.shift(); state.markers.push(state.sweep.f[i]); renderMarkers(); chart.dirty = true; });
+
+function buildLegend() {
+  const v = state.view; let items = [];
+  if (v === 's21db') items = [['--s21', '|S21|']]; else if (v === 'waterfall') items = [['--s11', '|S11| now'], [null, `<i style="width:60px;background:linear-gradient(90deg,${rampColor(0)},${rampColor(1)})"></i>0 dB → −40 dB (dark = good match)`]]; else items = [['--s11', v === 'swr' ? 'SWR from S11' : v === 'phase' ? 'S11 phase' : v === 'smith' ? 'S11 on the Smith chart' : '|S11|']];
+  if (state.held && v !== 'waterfall') items.push(['--ink-3', 'held trace']);
+  ui.legend.innerHTML = items.map(([c, l]) => `<span>${c ? `<i style="background:${cssVar(c)}"></i>` : ''}${l}</span>`).join('');
+}
+function renderMarkers() {
+  ui.markerBody.innerHTML = ''; const sw = state.sweep; if (!sw) return;
+  state.markers.forEach((mf, k) => {
+    const i = nearestIndex(sw, mf), re = sw.s11[2 * i], im = sw.s11[2 * i + 1], z = zOf(re, im);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${k + 1}</td><td>${fmtHz(sw.f[i])}</td><td>${db(re, im).toFixed(2)}</td><td>${swrOf(re, im).toFixed(2)}</td><td>${z.r.toFixed(1)}</td><td>${(z.x >= 0 ? '+' : '−') + Math.abs(z.x).toFixed(1)}</td><td>${db(sw.s21[2 * i], sw.s21[2 * i + 1]).toFixed(2)}</td><td><button title="Remove marker" data-k="${k}">×</button></td>`;
+    ui.markerBody.appendChild(tr);
+  });
+}
+ui.markerBody.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.markers.splice(+b.dataset.k, 1); renderMarkers(); chart.dirty = true; });
+
+// ================================================================ export
+function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+function exportCsv() {
+  const sw = state.sweep; const rows = [['freq_hz', 's11_re', 's11_im', 's11_db', 's11_phase_deg', 'swr', 'r_ohm', 'x_ohm', 's21_re', 's21_im', 's21_db', 's21_phase_deg']];
+  for (let i = 0; i < sw.pts; i++) { const a = sw.s11[2 * i], b = sw.s11[2 * i + 1], c = sw.s21[2 * i], d = sw.s21[2 * i + 1], z = zOf(a, b); rows.push([sw.f[i], a.toFixed(6), b.toFixed(6), db(a, b).toFixed(3), phaseDeg(a, b).toFixed(3), swrOf(a, b).toFixed(4), z.r.toFixed(3), z.x.toFixed(3), c.toFixed(6), d.toFixed(6), db(c, d).toFixed(3), phaseDeg(c, d).toFixed(3)]); }
+  download(`nanovna-${stamp()}.csv`, new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }));
+}
+function exportTouchstone(ports) {
+  const sw = state.sweep; const L = [`! nanoVNA Web ${stamp()} — ${env().name} — ${state.ident.version.split('\n')[0]}`];
+  if (ports === 2) L.push('! Measured: S11, S21. S12 is a copy of S21 (reciprocal assumption) and S22 a copy of S11 (symmetric assumption); the NanoVNA does not measure them.');
+  L.push(`# Hz S RI R ${z0()}`);
+  for (let i = 0; i < sw.pts; i++) { const a = sw.s11[2 * i].toFixed(6), b = sw.s11[2 * i + 1].toFixed(6), c = sw.s21[2 * i].toFixed(6), d = sw.s21[2 * i + 1].toFixed(6); L.push(ports === 1 ? `${sw.f[i]} ${a} ${b}` : `${sw.f[i]} ${a} ${b} ${c} ${d} ${c} ${d} ${a} ${b}`); }
+  download(`nanovna-${stamp()}.s${ports}p`, new Blob([L.join('\n') + '\n'], { type: 'text/plain' }));
+}
+function exportPng() { ui.canvas.toBlob(b => download(`nanovna-${state.view}-${stamp()}.png`, b), 'image/png'); }
+async function screenshot() {
+  if (!state.link || state.busy) return; const [W, H] = env().screen; state.busy = true;
+  try {
+    const { payload, ms } = await state.link.commandBinary('capture', W * H * 2);
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'); const img = ctx.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) { const v = payload[2 * i] | (payload[2 * i + 1] << 8); // RGB565 little-endian; nvnapython notes the F series is BGR-ordered
+      const r = (v >> 11) & 31, g = (v >> 5) & 63, b = v & 31; img.data[4 * i] = (b << 3) | (b >> 2); img.data[4 * i + 1] = (g << 2) | (g >> 4); img.data[4 * i + 2] = (r << 3) | (r >> 2); img.data[4 * i + 3] = 255; }
+    ctx.putImageData(img, 0, 0); c.toBlob(b => download(`nanovna-screen-${stamp()}.png`, b), 'image/png');
+    log(`capture: ${payload.length} bytes in ${ms.toFixed(0)} ms`, 'dim');
+  } catch (e) { log('screenshot failed: ' + e.message, 'err'); }
+  finally { state.busy = false; }
+}
+
+// ================================================================ diagnostics
+const DIAG_COMMANDS = ['version', 'info', 'SN', 'help', 'sweep', 'frequencies', 'scan 1000000 100000000 11 7', 'scan 1000000 100000000 11 3', 'data 0', 'data 1', 'pause', 'resume'];
+async function collectDiagnostics() {
+  if (!state.link || state.busy) return; state.busy = true; ui.diagBtn.disabled = true; ui.diagOut.classList.remove('hidden'); ui.diagOut.textContent = 'collecting…';
+  const d = { tool: 'nanovna-web', version: '0.1.0', when: new Date().toISOString(), userAgent: navigator.userAgent, port: state.link.info(), modelSelected: state.model, modelDetected: detectModel(state.ident.version, state.ident.info), ident: state.ident, commands: [] };
+  for (const cmd of DIAG_COMMANDS) {
+    const rec = { cmd }; const t0 = performance.now();
+    try { const r = await state.link.command(cmd, { timeoutMs: 8000, quiet: true }); rec.ms = +r.ms.toFixed(1); rec.rawLength = r.raw.length; rec.raw = r.raw.length > 6000 ? r.raw.slice(0, 3000) + '\n…[truncated]…\n' + r.raw.slice(-2000) : r.raw; rec.lines = r.body.split('\n').filter(Boolean).length; rec.promptCount = (r.raw.match(/ch>/g) || []).length; }
+    catch (e) { rec.error = e.message; rec.ms = +(performance.now() - t0).toFixed(1); }
+    d.commands.push(rec); ui.diagOut.textContent = d.commands.map(r => `${r.cmd.padEnd(36)} ${r.error ? 'ERROR ' + r.error : `${String(r.ms).padStart(7)} ms  ${String(r.lines).padStart(4)} lines  ${r.promptCount} prompt(s)`}`).join('\n');
+  }
+  // one full-size scan for timing
+  const { st, sp, pts } = sweepParams(); const rec = { cmd: `scan ${st} ${sp} ${pts} 7` };
+  try { const r = await state.link.command(rec.cmd, { timeoutMs: 20000, quiet: true }); rec.ms = +r.ms.toFixed(1); rec.lines = r.body.split('\n').filter(Boolean).length; rec.parsedOk = !!parseScan(r.body, pts); rec.firstLines = r.body.split('\n').slice(0, 5); rec.lastLines = r.body.split('\n').slice(-3); rec.promptCount = (r.raw.match(/ch>/g) || []).length; } catch (e) { rec.error = e.message; }
+  d.commands.push(rec);
+  ui.diagOut.textContent += `\n${rec.cmd.padEnd(36)} ${rec.error ? 'ERROR ' + rec.error : `${String(rec.ms).padStart(7)} ms  ${String(rec.lines).padStart(4)} lines  parsed ${rec.parsedOk ? 'OK' : 'FAILED'}`}\n\nDone. Download the JSON and attach it to an issue.`;
+  state.diag = d; ui.diagDlBtn.disabled = false; ui.diagBtn.disabled = false; state.busy = false;
+}
+
+// ================================================================ wiring
+const hasSerial = 'serial' in navigator;
+if (!hasSerial) { ui.noSerial.classList.remove('hidden'); ui.connectBtn.disabled = true; }
+ui.connectBtn.addEventListener('click', () => state.link ? disconnect() : connect(false));
+ui.demoBtn.addEventListener('click', () => state.link ? disconnect() : connect(true));
+ui.modelSel.addEventListener('change', () => { if (ui.modelSel.value === 'auto') { if (state.link) applyModel(detectModel(state.ident.version, state.ident.info)); } else applyModel(ui.modelSel.value); });
+ui.singleBtn.addEventListener('click', () => doSweep());
+ui.contBtn.addEventListener('click', () => { state.continuous = !state.continuous; ui.contBtn.setAttribute('aria-pressed', String(state.continuous)); if (state.continuous) continuousLoop(); });
+ui.views.forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; ui.views.forEach(x => x.setAttribute('aria-pressed', String(x === b))); buildLegend(); chart.dirty = true; }));
+ui.holdBtn.addEventListener('click', () => { if (state.held) { state.held = null; ui.holdBtn.setAttribute('aria-pressed', 'false'); } else if (state.sweep) { state.held = { ...state.sweep, f: state.sweep.f.slice(), s11: state.sweep.s11.slice(), s21: state.sweep.s21.slice() }; ui.holdBtn.setAttribute('aria-pressed', 'true'); } buildLegend(); chart.dirty = true; });
+ui.clearBtn.addEventListener('click', () => { state.sweep = null; state.held = null; state.history = []; state.markers = []; ui.holdBtn.setAttribute('aria-pressed', 'false'); renderMarkers(); buildLegend(); chart.dirty = true; [ui.csvBtn, ui.s1pBtn, ui.s2pBtn, ui.pngBtn, ui.clearBtn, ui.minSwrBtn, ui.clearMarkersBtn].forEach(b => b.disabled = true); });
+ui.minSwrBtn.addEventListener('click', () => { const sw = state.sweep; if (!sw) return; let b = 0, bv = Infinity; for (let i = 0; i < sw.pts; i++) { const v = swrOf(sw.s11[2 * i], sw.s11[2 * i + 1]); if (v < bv) { bv = v; b = i; } } if (state.markers.length >= MAX_MARKERS) state.markers.shift(); state.markers.push(sw.f[b]); renderMarkers(); chart.dirty = true; });
+ui.clearMarkersBtn.addEventListener('click', () => { state.markers = []; renderMarkers(); chart.dirty = true; });
+ui.z0.addEventListener('input', () => { renderMarkers(); chart.dirty = true; });
+ui.csvBtn.addEventListener('click', exportCsv); ui.s1pBtn.addEventListener('click', () => exportTouchstone(1)); ui.s2pBtn.addEventListener('click', () => exportTouchstone(2)); ui.pngBtn.addEventListener('click', exportPng); ui.shotBtn.addEventListener('click', screenshot);
+ui.diagBtn.addEventListener('click', collectDiagnostics);
+ui.diagDlBtn.addEventListener('click', () => state.diag && download(`nanovna-diag-${stamp()}.json`, new Blob([JSON.stringify(state.diag, null, 2)], { type: 'application/json' })));
+ui.ptsRadios.addEventListener('change', e => { if (e.target.value === 'custom') ui.ptsCustom.focus(); });
+ui.ptsCustom.addEventListener('focus', () => { document.querySelector('input[name=pts][value=custom]').checked = true; });
+ui.sendForm.addEventListener('submit', async e => { e.preventDefault(); const cmd = ui.sendInput.value.trim(); if (!cmd || !state.link || state.busy) return; ui.sendInput.value = ''; try { await state.link.command(cmd, { timeoutMs: 8000 }); } catch (err) { log(err.message, 'err'); } });
+window.addEventListener('beforeunload', () => { if (state.link instanceof SerialLink) { try { state.link._write('resume\r\n'); } catch {} } });
+if (hasSerial) navigator.serial.addEventListener('disconnect', () => { if (state.link instanceof SerialLink) disconnect(true); });
+
+applyModel('NANOVNA_F_V2'); buildLegend(); tick();
+})();
+</script>
+</body>
+</html>

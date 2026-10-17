@@ -1,0 +1,77 @@
+# Contributing to nanoVNA Web
+
+Thanks for helping. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) first.
+
+This page talks to a device whose firmware we don't control, so most useful
+contributions are **evidence from hardware**: a diagnostic sample from a model
+or firmware version the page hasn't seen, a quirk written up in `PROTOCOL.md`,
+or a fix to the driver with the sample that motivated it.
+
+## Ways to contribute
+
+- **A scan that fails or looks wrong** — use the *Scan problem* template and
+  attach the JSON from *Collect diagnostic sample*. That file is the whole
+  point of the diagnostics button; one of them is worth more than a paragraph
+  of description.
+- **A device the page hasn't been tested with** — same template. If it works,
+  say so too: "works on an H4 with firmware X" is useful and goes in the README.
+- **Bugs in the page itself** — *Bug report* template.
+- **Ideas** — *Feature request* template. Views, readouts, export formats,
+  calibration flow.
+- **Docs** — README, PROTOCOL.md. No hardware needed.
+- **Code** — see below.
+
+## The shape of the code
+
+Everything is in `index.html`. From the top of the script:
+
+- `MODELS` — per-model envelopes, mirrored from `nvnapython/constants.py`. To
+  add a model, add an entry here and a detection pattern in `detectModel()`.
+- `ShellLink` — the console protocol: framing, prompt detection, echo
+  stripping, the no-prompt and binary paths. Transport-agnostic.
+- `SerialLink` — Web Serial transport. `DemoLink` — a simulated device that
+  produces the same byte stream through the same parser.
+- `doSweep()` / `parseScan()` — the one measurement path.
+- `renderChart()` and friends — all drawing on one canvas, no chart library.
+- Exports, diagnostics, wiring.
+
+A fix to the driver should be reproducible through `DemoLink` if at all
+possible: if a real device does something odd, teach the demo to do it too, so
+the fix stays tested without hardware.
+
+## Development setup
+
+No build step. Open `index.html` in Chrome or Edge; Web Serial works from a
+`file://` URL. Everything stays in one file — no frameworks, no bundler, no
+CDN scripts. The page must work with the Google Fonts blocked.
+
+## Testing before a PR
+
+| Change touches… | Test |
+|---|---|
+| `ShellLink` / `SerialLink` | Demo walkthrough **and** a real device: single sweep at max points, continuous for a minute, *Collect diagnostic sample* before and after the change; paste both summaries in the PR. |
+| Views, markers, math | Demo walkthrough, every view, light and dark. Check a marker's R + jX by hand for one point (Z = Z₀ (1+Γ)/(1−Γ)). |
+| Export | Open the CSV in a spreadsheet and the `.s1p` in any Touchstone reader (scikit-rf, NanoVNA-Saver, a VNA vendor tool). |
+| `MODELS` | Say which device and firmware the numbers came from. |
+| PROTOCOL.md | Mark each claim *verified on &lt;model&gt;* or *unverified*. |
+
+## Style
+
+- Two-space indent; no new globals outside the IIFE.
+- Colours come from the CSS variables at the top. `--s11` and `--s21` are the
+  only trace colours; nothing else on the page may use them.
+- Numbers shown to the user go through `fmtHz` / `toFixed` — no raw floats.
+- Copy in sentence case, plain words. The audience is someone with a NanoVNA on
+  the desk, not necessarily someone who has read the firmware.
+
+## Commit and PR conventions
+
+- One logical change per PR; reference the issue it closes.
+- Any new device behaviour discovered goes into `PROTOCOL.md` (*Quirks* or
+  *Not yet verified*) in the same PR as the code that handles it.
+- Add a line to `CHANGELOG.md`.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the
+project's **GPL-2.0** license.
