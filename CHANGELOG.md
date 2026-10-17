@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.1
+
+- Settings: checkbox rows laid out properly (box at left, text beside it,
+  SWR threshold input compact); group headings spaced.
+
 ## v0.4.0 — recording
 
 - Recording section: one Start/Stop toggle logs every sweep (single or

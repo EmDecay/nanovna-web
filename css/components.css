@@ -20,8 +20,14 @@ select { font-family: var(--font); }
 .field { margin: 10px 0; }
 .field label, .field .label { display: block; font-size: .85rem; color: var(--ink-2); margin-bottom: 4px; }
 .field label.row { display: flex; color: var(--ink); font-size: .92rem; }
+.label.group { display: block; margin: 16px 0 6px; color: var(--ink); font-size: .9rem; font-weight: 600; }
 .row { display: flex; gap: 8px; align-items: center; }
 .row input { width: 100%; }
+/* checkbox rows: box hugs the left, text flows beside it, inline number stays compact */
+.row.check { align-items: flex-start; gap: 10px; cursor: pointer; color: var(--ink); font-size: .92rem; }
+.row.check input[type=checkbox] { width: auto; flex: 0 0 auto; margin: 3px 0 0; accent-color: var(--accent); }
+.row.check > span { flex: 1 1 auto; line-height: 1.35; }
+.row.check > input[type=number] { flex: 0 0 auto; width: 64px; padding: 3px 6px; }
 .row .suffix { color: var(--ink-2); font-size: .85rem; white-space: nowrap; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .stack { display: flex; flex-direction: column; gap: 6px; }
