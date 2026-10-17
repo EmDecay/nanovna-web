@@ -110,7 +110,7 @@ collapse; the choice is remembered. Drag its right edge to resize it
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
-## What it does (v0.3)
+## What it does (v0.4)
 
 - **Sweep** — start/stop in MHz, points by model maximum / quick / custom,
   single or continuous.
@@ -192,7 +192,7 @@ js/
     rect.js  smith.js  waterfall.js  palettes.js  common.js
   ui/
     sidebar.js  console.js  settings.js  diagnostics.js  export.js
-    calibration.js  cw.js  session.js  devicetools.js  recorder.js
+    calibration.js  cw.js  session.js  devicetools.js  recorder.js  about.js
 ```
 
 `js/device/` is the part another tool would reuse: `main.js` calls

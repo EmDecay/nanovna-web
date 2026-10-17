@@ -20,8 +20,9 @@ import { initCw } from './ui/cw.js';
 import { sessionBlob, parseSession, parseTouchstone, pickFile } from './ui/session.js';
 import { initDeviceTools } from './ui/devicetools.js';
 import { createRecorder } from './ui/recorder.js';
+import { initAbout } from './ui/about.js';
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.2';
 const $ = id => document.getElementById(id);
 const VIEW_TO_TRACE = { s11db: 'logmag', s21db: 'logmag', swr: 'swr', phase: 'phase', smith: 'smith', waterfall: 'logmag' };
 
@@ -54,6 +55,7 @@ $('freezeBtn').addEventListener('click', async () => { const v = state.vna; if (
 const recorder = createRecorder();
 const cw = initCw($('cwPanel'), () => state.vna, () => settings.z0, con, m => recorder.addCw(m));
 const tools = initDeviceTools($('toolsSection'), () => state.vna, con);
+initAbout($('about'), $('aboutLink'), [$('plotArea'), $('markersPanel')], { version: APP_VERSION });
 
 // ---------------------------------------------------------------- model / status
 function setStatus(text, cls) { $('statusText').textContent = text; $('status').className = 'status ' + (cls || ''); }

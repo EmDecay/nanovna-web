@@ -44,6 +44,27 @@ a { color: var(--accent); }
 canvas#plot { width: 100%; height: clamp(320px, 52vh, 620px); display: block; touch-action: none; cursor: crosshair; }
 .tip { position: absolute; pointer-events: none; display: none; background: var(--ink); color: var(--paper); font-size: .82rem; padding: 5px 8px; border-radius: 4px; white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; transform: translate(12px, -50%); z-index: 2; }
 
+/* ---- about page (stands in for the plot + markers while open) ---- */
+.about { padding: 14px 16px 6px; }
+.about .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 14px; }
+.about .head h2 { margin: 0; font-size: 1.15rem; }
+.about .head .lede { margin: 0; color: var(--ink-2); flex: 1 1 auto; }
+.about p { margin: 0 0 10px; }
+.about p:last-child { margin-bottom: 0; }
+.about ul li, .about ol li { margin: 0 0 6px; }
+.card { background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 14px; }
+.card h3 { margin: 0 0 10px; font-size: 1rem; }
+.card h3 .badge { margin-left: 8px; vertical-align: middle; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+.cols .card { margin: 0; }
+.cols + .cols { margin-top: 14px; }
+ol.steps { margin: 0; padding-left: 1.3em; }
+table.grid { width: 100%; border-collapse: collapse; font-size: .86rem; margin: 0 0 6px; }
+table.grid th, table.grid td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+table.grid th { color: var(--ink-2); font-weight: 500; }
+table.grid td.mono, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.topbar nav a[aria-current="page"] { color: var(--accent); }
+
 /* ---- console drawer ---- */
 .console { border-top: 1px solid var(--edge); background: var(--panel); display: flex; flex-direction: column; }
 .console .bar { display: flex; align-items: center; gap: 8px; padding: 6px 16px; }

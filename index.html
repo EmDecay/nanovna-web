@@ -39,6 +39,7 @@
   <button class="btn small" id="freezeBtn" aria-pressed="false" disabled title="Sends pause / resume. The device must be sweeping to calibrate.">Freeze device screen</button>
   <span class="spacer"></span>
   <nav>
+    <a href="#about" id="aboutLink" aria-current="false">About</a>
     <a href="https://github.com/LC-Linkous/nanovna-web">Source</a>
     <a href="https://lc-linkous.github.io/">Portfolio</a>
   </nav>
@@ -236,7 +237,8 @@
 
   <!-- ================================================================ main -->
   <main class="main">
-    <div class="plot-area">
+    <section class="about" id="about" aria-label="About nanoVNA Web" hidden></section>
+    <div class="plot-area" id="plotArea">
       <div class="chart-head">
         <div class="views" role="group" aria-label="Trace view">
           <button class="btn small" data-view="s11db" aria-pressed="true">|S11| dB</button>
@@ -270,7 +272,7 @@
       </div>
     </div>
 
-    <section class="markers-panel" aria-label="Markers">
+    <section class="markers-panel" id="markersPanel" aria-label="Markers">
       <div class="head">
         <h2>Markers</h2>
         <button class="btn small" id="minSwrBtn" disabled>Mark minimum SWR</button>
