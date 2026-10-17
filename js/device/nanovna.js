@@ -6,6 +6,14 @@
 import { MODELS, DEFAULT_MODEL, detectModel } from './models.js';
 import { PROMPT } from './shell-link.js';
 
+/** The console never signals errors; it prints a usage line or a complaint and then the prompt. */
+export function looksLikeError(body) {
+  const t = (body || '').trim().toLowerCase();
+  return /^usage:|^\S+\?$|invalid|unknown|error|out of range|bad /.test(t);
+}
+/** Throw if the reply reads as a rejection. */
+function check(r, what) { if (looksLikeError(r.body)) { const e = new Error(`${what}: device replied "${r.body.trim().split('\n')[0]}"`); e.reply = r.body; throw e; } return r; }
+
 export class NanoVNA {
   constructor(link) {
     this.link = link;
@@ -84,14 +92,14 @@ export class NanoVNA {
 
   // ---- calibration (device-side) ----------------------------------------
   /** cal('open'|'short'|'load'|'thru'|'done'|'reset'|'on'|'off') */
-  async cal(action) { return this.link.command(`cal ${action}`, { timeoutMs: 8000 }); }
-  async recall(slot) { return this.link.command(`recall ${slot}`, { timeoutMs: 5000 }); }
+  async cal(action) { return check(await this.link.command(`cal ${action}`, { timeoutMs: 8000 }), `cal ${action}`); }
+  async recall(slot) { return check(await this.link.command(`recall ${slot}`, { timeoutMs: 5000 }), `recall ${slot}`); }
   /** save never returns a prompt on the F V2 (confirmed in nvnapython). */
   async save(slot) { return this.link.commandNoPrompt(`save ${slot}`, 1500); }
 
   // ---- single frequency ----------------------------------------------------
   /** cwfreq {kHz}: put the device in CW at one frequency (its own screen). */
-  async cwfreq(hz) { return this.link.command(`cwfreq ${Math.round(hz / 1e3)}`, { timeoutMs: 3000 }); }
+  async cwfreq(hz) { return check(await this.link.command(`cwfreq ${Math.round(hz / 1e3)}`, { timeoutMs: 3000 }), 'cwfreq'); }
   /** One-point measurement for the CW meter: a tiny 11-point scan, averaged. */
   async measureAt(hz) {
     const pts = 11, span = 1e3;
@@ -102,20 +110,40 @@ export class NanoVNA {
 
   // ---- markers / traces on the device -------------------------------------
   /** marker N idx — move device marker N (1-4) to sweep point idx; marker N off. */
-  async marker(n, idxOrOff) { return this.link.command(`marker ${n} ${idxOrOff}`, { timeoutMs: 3000 }); }
+  async marker(n, idxOrOff) { return check(await this.link.command(`marker ${n} ${idxOrOff}`, { timeoutMs: 3000 }), `marker ${n}`); }
   /** trace N fmt — set a device trace's display format (logmag, smith, swr, phase, …). */
-  async trace(n, fmt) { return this.link.command(`trace ${n} ${fmt}`, { timeoutMs: 3000 }); }
+  async trace(n, fmt) { return check(await this.link.command(`trace ${n} ${fmt}`, { timeoutMs: 3000 }), `trace ${n}`); }
+
+  /**
+   * Put the page's markers on the device. Device marker indices refer to the
+   * DEVICE's sweep, so the device sweep is set to match first. Stops at the
+   * first rejection. Returns { sent, skipped, error }.
+   */
+  async syncMarkers(sweep, markerFreqs) {
+    const n = this.env.markers || 4;
+    const result = { sent: 0, skipped: Math.max(0, markerFreqs.length - n), error: null };
+    try {
+      await this.sweep(sweep.start, sweep.stop, sweep.pts);
+      for (let k = 1; k <= n; k++) {
+        const mf = markerFreqs[k - 1];
+        if (mf == null) { await this.marker(k, 'off'); continue; }
+        let best = 0, bd = Infinity; for (let i = 0; i < sweep.pts; i++) { const d = Math.abs(sweep.f[i] - mf); if (d < bd) { bd = d; best = i; } }
+        await this.marker(k, best); result.sent++;
+      }
+    } catch (e) { result.error = e.message; }
+    return result;
+  }
 
   // ---- calibration extras ---------------------------------------------------
   /** edelay [value]: get or set electrical delay. Value is passed straight through. */
-  async edelay(v) { const r = await this.link.command(v == null ? 'edelay' : `edelay ${v}`, { timeoutMs: 3000 }); return r.body.trim(); }
+  async edelay(v) { const r = check(await this.link.command(v == null ? 'edelay' : `edelay ${v}`, { timeoutMs: 3000 }), 'edelay'); return r.body.trim(); }
 
   // ---- display / UI -----------------------------------------------------------
   /** beep on|off — nvnapython beep_time() does on, wait, off. */
   async beep(on) { return this.link.command(`beep ${on ? 'on' : 'off'}`, { timeoutMs: 2000 }); }
   async beepFor(ms = 80) { await this.beep(true); await new Promise(r => setTimeout(r, ms)); await this.beep(false); }
   /** pwm 0.0–1.0 — screen brightness. */
-  async pwm(v) { return this.link.command(`pwm ${Math.min(1, Math.max(0, v)).toFixed(2)}`, { timeoutMs: 2000 }); }
+  async pwm(v) { return check(await this.link.command(`pwm ${Math.min(1, Math.max(0, v)).toFixed(2)}`, { timeoutMs: 2000 }), 'pwm'); }
   async resolution() { const r = await this.link.command('resolution', { timeoutMs: 3000 }); return r.body.trim(); }
   /** touchcal / touchtest — need the user at the device screen. */
   async touchCal() { return this.link.command('touchcal', { timeoutMs: 60000 }); }

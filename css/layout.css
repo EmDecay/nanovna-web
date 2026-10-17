@@ -14,11 +14,14 @@ a { color: var(--accent); }
 .topbar nav a { margin-left: 14px; font-size: .9rem; color: var(--ink-2); }
 .notice { margin: 0; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--edge); color: var(--ink-2); font-size: .9rem; }
 
-.app { display: grid; grid-template-columns: 300px 1fr; flex: 1 0 auto; align-items: start; }
-@media (max-width: 900px) { .app { grid-template-columns: 1fr; } }
+:root { --sidebar-w: 300px; }
+.app { display: grid; grid-template-columns: var(--sidebar-w) 6px 1fr; flex: 1 0 auto; align-items: start; }
+.sidebar-handle { cursor: col-resize; align-self: stretch; background: var(--edge); opacity: .6; }
+.sidebar-handle:hover, .sidebar-handle.active { background: var(--accent); opacity: 1; }
+@media (max-width: 900px) { .app { grid-template-columns: 1fr; } .sidebar-handle { display: none; } }
 
 /* ---- sidebar: docked accordion ---- */
-.sidebar { background: var(--panel); border-right: 1px solid var(--edge); position: sticky; top: 0; max-height: 100vh; overflow-y: auto; align-self: stretch; }
+.sidebar { background: var(--panel); border-right: none; position: sticky; top: 0; max-height: 100vh; overflow-y: auto; align-self: stretch; }
 @media (max-width: 900px) { .sidebar { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--edge); } }
 .sidebar section { border-bottom: 1px solid var(--edge); }
 .sidebar h2 { margin: 0; font-size: .95rem; }

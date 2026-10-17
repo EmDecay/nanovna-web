@@ -99,7 +99,7 @@
             <button class="btn small" id="calSave">Save</button><button class="btn small" id="calRecall">Recall</button></div>
           <p class="hint">F V2 accepts save 0–4; recall 0–6.</p></div>
         <div class="field"><label for="edelay">Electrical delay (edelay)</label>
-          <div class="row"><input type="text" id="edelay" placeholder="value as the device expects"><button class="btn small" id="edelayGet">Read</button><button class="btn small" id="edelaySet">Set</button></div>
+          <div class="row"><input type="text" id="edelay" placeholder="e.g. 0"><button class="btn small" id="edelayGet">Read</button><button class="btn small" id="edelaySet">Set</button></div>
           <p class="hint">Port extension for a cable between the port and the DUT. Passed straight to the device.</p></div>
       </div>
     </section>
@@ -202,6 +202,7 @@
       </div>
     </section>
   </aside>
+  <div class="sidebar-handle" id="sidebarHandle" title="Drag to resize the sidebar"></div>
 
   <!-- ================================================================ main -->
   <main class="main">
@@ -244,9 +245,10 @@
         <h2>Markers</h2>
         <button class="btn small" id="minSwrBtn" disabled>Mark minimum SWR</button>
         <button class="btn small" id="peakBtn" disabled title="Highest |S11| — a resonance seen from the other side">Mark |S11| peak</button>
-        <button class="btn small" id="syncMarkersBtn" disabled title="Write the first four markers to the device's own markers">Send to device</button>
+        <button class="btn small" id="syncMarkersBtn" disabled title="Sets the device sweep to match, then writes the markers to the device's own markers">Send first 4 to device</button>
         <button class="btn small" id="clearMarkersBtn" disabled>Clear</button>
         <span class="hint">Click the plot to place one (up to 6).</span>
+        <span class="hint" id="markerStatus" style="margin-left:auto"></span>
       </div>
       <div class="markers-wrap">
         <table class="markers" id="markerTable">

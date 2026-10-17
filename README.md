@@ -45,7 +45,8 @@ command set, same model envelopes, same quirks list, no Python needed.
 ```
 
 The sidebar is an accordion — click a header to open it, click again to
-collapse; the choice is remembered. The markers table sits between the plot and
+collapse; the choice is remembered. Drag its right edge to resize it
+(double-click the edge to reset). The markers table sits between the plot and
 the console so it has the full width. On narrow screens the sidebar stacks
 above the plot.
 
@@ -57,8 +58,9 @@ above the plot.
   (rolling |S11| history). *Hold* keeps a trace for comparison.
 - **Markers** — click to place up to six; each shows frequency, |S11|, SWR,
   R, X, |S21| and phase. *Mark minimum SWR* and *Mark |S11| peak* find them
-  for you; *Send to device* writes the first four to the instrument's own
-  markers (`marker N idx`).
+  for you; *Send first 4 to device* sets the instrument's sweep to match and
+  writes the markers to its own four (`sweep`, `marker N idx`); markers 5–6
+  stay page-only. A rejection by the device is shown on the markers row.
 - **Calibration** — step-through SOLT on the device (`cal open/short/load/
   thru/done`), on/off, reset, save/recall slots, and electrical delay
   (`edelay`). A badge in the top bar shows whether data is corrected.

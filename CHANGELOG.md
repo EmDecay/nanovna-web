@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.1
+
+- Sidebar is resizable: drag the edge (double-click to reset); width remembered.
+- edelay input placeholder no longer cut off.
+- Marker sync: sets the device sweep to match the page first (device marker
+  indices refer to the device's sweep), sends only as many markers as the
+  model has (4), labels the rest "(page)" in the table, and reports a device
+  rejection on a status line instead of continuing.
+- The NanoVNA API now detects error replies (usage lines, "invalid", "out of
+  range", …) for marker, trace, cal, recall, edelay, cwfreq and pwm, since the
+  console protocol never signals errors itself. The demo device rejects bad
+  marker ids/indices and unknown trace formats so this path is tested.
+
 ## v0.3.0 — front panel
 
 - Fixes: accordion headers collapse on second click; demo mode is obvious

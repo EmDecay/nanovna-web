@@ -20,7 +20,7 @@ import { initCw } from './ui/cw.js';
 import { sessionBlob, parseSession, parseTouchstone, pickFile } from './ui/session.js';
 import { initDeviceTools } from './ui/devicetools.js';
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.1';
 const $ = id => document.getElementById(id);
 const VIEW_TO_TRACE = { s11db: 'logmag', s21db: 'logmag', swr: 'swr', phase: 'phase', smith: 'smith', waterfall: 'logmag' };
 
@@ -208,10 +208,12 @@ function renderMarkers() {
   state.markers.forEach((mf, k) => {
     const i = nearestIndex(sw.f, mf), re = sw.s11[2 * i], im = sw.s11[2 * i + 1], z = gammaToZ(re, im, settings.z0);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${k + 1}</td><td>${fmtHz(sw.f[i])}</td><td>${db(re, im).toFixed(2)}</td><td>${swr(re, im).toFixed(2)}</td><td>${z.r.toFixed(1)}</td><td>${(z.x >= 0 ? '+' : '−') + Math.abs(z.x).toFixed(1)}</td><td>${db(sw.s21[2 * i], sw.s21[2 * i + 1]).toFixed(2)}</td><td>${phaseDeg(re, im).toFixed(1)}</td><td><button type="button" title="Remove marker" data-k="${k}">×</button></td>`;
+    const devN = state.vna ? (state.vna.env.markers || 4) : 4;
+    tr.innerHTML = `<td>${k + 1}${k >= devN ? ' <span class="hint" title="Beyond the device\'s marker count — page only">(page)</span>' : ''}</td><td>${fmtHz(sw.f[i])}</td><td>${db(re, im).toFixed(2)}</td><td>${swr(re, im).toFixed(2)}</td><td>${z.r.toFixed(1)}</td><td>${(z.x >= 0 ? '+' : '−') + Math.abs(z.x).toFixed(1)}</td><td>${db(sw.s21[2 * i], sw.s21[2 * i + 1]).toFixed(2)}</td><td>${phaseDeg(re, im).toFixed(1)}</td><td><button type="button" title="Remove marker" data-k="${k}">×</button></td>`;
     body.appendChild(tr);
   });
   $('markerEmpty').hidden = state.markers.length > 0;
+  $('syncMarkersBtn').textContent = `Send first ${state.vna ? (state.vna.env.markers || 4) : 4} to device`;
 }
 function buildLegend() {
   const v = state.view; let items = [];
@@ -224,10 +226,12 @@ function buildLegend() {
 }
 async function syncMarkersToDevice() {
   const vna = state.vna, sw = state.sweep; if (!vna || !sw || state.busy) return; state.busy = true;
+  const st = $('markerStatus'); st.textContent = 'sending…'; st.className = 'hint';
   try {
-    for (let n = 1; n <= 4; n++) { const mf = state.markers[n - 1]; if (mf == null) await vna.marker(n, 'off'); else await vna.marker(n, nearestIndex(sw.f, mf)); }
-    con.dim(`sent ${Math.min(4, state.markers.length)} marker(s) to the device`);
-  } catch (e) { con.err('marker sync failed: ' + e.message); } finally { state.busy = false; }
+    const r = await vna.syncMarkers(sw, state.markers);
+    if (r.error) { st.textContent = `Stopped after ${r.sent} marker(s): ${r.error}`; st.className = 'hint err'; con.err(r.error); }
+    else { st.textContent = `Sent ${r.sent} marker(s) to the device (device sweep set to ${fmtHz(sw.start)} – ${fmtHz(sw.stop)}, ${sw.pts} pts)` + (r.skipped ? `; ${r.skipped} page-only` : ''); con.dim(st.textContent); }
+  } finally { state.busy = false; }
 }
 
 // ---------------------------------------------------------------- session / overlay

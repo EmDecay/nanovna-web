@@ -68,8 +68,15 @@ export class DemoLink extends ShellLink {
       case 'resolution': body = '800,480'; break;
       case 'touchcal': body = 'touch calibration: tap the targets on the device screen (simulated)'; delay = 600; break;
       case 'touchtest': body = 'touch test running (simulated)'; delay = 600; break;
-      case 'marker': if (a.length >= 2) this.markers[a[0]] = a[1]; else body = Object.entries(this.markers).map(([k, v]) => `${k} ${v}`).join('\n'); break;
-      case 'trace': if (a.length >= 2) this.traces[a[0]] = a[1]; else body = Object.entries(this.traces).map(([k, v]) => `${k} ${v}`).join('\n'); break;
+      case 'marker': {
+        if (a.length >= 2) { const id = +a[0], v = a[1]; if (!(id >= 1 && id <= 4)) body = 'marker: invalid marker id (1-4)'; else if (v !== 'off' && !(+v >= 0 && +v < this.sweepPts)) body = `marker: index out of range (0-${this.sweepPts - 1})`; else this.markers[id] = v; }
+        else body = Object.entries(this.markers).map(([k, v]) => `${k} ${v}`).join('\n');
+        break; }
+      case 'trace': {
+        const fmts = ['off', 'logmag', 'linear', 'phase', 'smith', 'swr', 'polar', 'delay', 'refpos', 'channel'];
+        if (a.length >= 2) { if (!fmts.includes(a[1].toLowerCase())) body = `usage: trace {id} {${fmts.join('|')}}`; else this.traces[a[0]] = a[1]; }
+        else body = Object.entries(this.traces).map(([k, v]) => `${k} ${v}`).join('\n');
+        break; }
       case 'sweep':
         if (a.length >= 2) { this.sweepStart = +a[0]; this.sweepStop = +a[1]; if (a[2]) this.sweepPts = +a[2]; }
         else body = `${this.sweepStart} ${this.sweepStop} ${this.sweepPts}`;

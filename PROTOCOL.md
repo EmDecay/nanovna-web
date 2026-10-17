@@ -80,6 +80,13 @@ overrides it.
 
 ## Quirks the page handles
 
+0. **No error signalling.** A rejected command prints a usage line or a
+   complaint (`marker: invalid …`) followed by the normal prompt, so a
+   transport-level "success" can still be a failure. `nanovna.js` runs
+   replies through `looksLikeError()` for the commands where that matters.
+   `marker N idx` indexes the **device's** current sweep, so the page sets the
+   device sweep to match before sending markers.
+
 1. **Doubled prompt with trailing space** — see framing above.
 2. **`save N` returns no prompt** on the F V2 (echo only, even after 30 s). Not
    used in v0.1, but `commandNoPrompt()` is there for the calibration panel.
