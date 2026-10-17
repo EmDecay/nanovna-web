@@ -48,3 +48,29 @@ table.markers button { border: none; background: none; color: var(--ink-3); padd
 .diag-out { font-family: var(--mono); font-size: .78rem; line-height: 1.4; background: var(--screen); border: 1px solid var(--edge); border-radius: var(--radius); padding: 8px 10px; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; color: var(--ink-2); margin-top: 10px; }
 .palette-swatch { display: block; height: 10px; border-radius: 3px; margin-top: 6px; border: 1px solid var(--edge); }
 code { font-family: var(--mono); font-size: .9em; background: var(--screen); border: 1px solid var(--edge); padding: 0 4px; border-radius: 3px; }
+
+/* running state for Single / Continuous / CW */
+.btn.running { background: var(--warn); border-color: var(--warn); color: #1a1a1a; font-weight: 700; }
+.btn.running::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #1a1a1a; margin-right: 8px; animation: pulse 1s ease-in-out infinite; vertical-align: 1px; }
+@keyframes pulse { 50% { opacity: .25; } }
+.btn.busy { color: var(--ink-2); }
+/* demo mode active */
+.btn.demo-active { border-color: var(--warn); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 45%, transparent); font-weight: 700; }
+/* badges */
+.badge { display: inline-block; font-size: .8rem; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--edge); color: var(--ink-2); background: var(--screen); }
+.badge.ok { border-color: var(--ok); color: var(--ok); } .badge.warn { border-color: var(--warn); color: var(--warn); }
+.cal-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.cal-steps .btn.done::after { content: ' ✓'; color: var(--ok); }
+/* CW meter */
+.cw-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; padding: 24px 18px; background: var(--screen); border: 1px solid var(--edge); border-radius: var(--radius); }
+.cw-panel .big { font-family: var(--mono); font-size: 2.4rem; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--s11); white-space: nowrap; }
+.cw-panel .big.z { font-size: 1.7rem; }
+.cw-panel .big.s21 { color: var(--s21); }
+.cw-panel .lbl { font-size: .85rem; color: var(--ink-2); }
+.cw-panel .unit { font-family: var(--mono); font-size: 1rem; color: var(--ink-2); margin-left: 4px; }
+/* markers panel under the plot */
+.markers-panel { padding: 8px 16px 10px; border-top: 1px solid var(--edge); }
+.markers-panel .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.markers-panel .head h2 { font-size: .9rem; margin: 0 8px 0 0; }
+.console .bar label { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--ink-2); }
+.console .bar select { padding: 3px 6px; font-size: .85rem; }

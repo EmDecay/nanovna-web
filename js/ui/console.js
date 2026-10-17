@@ -5,16 +5,17 @@
 const COLLAPSE_AFTER = 12;
 const MAX_ENTRIES = 600;
 
-export function initConsole({ log, form, input, handle, drawer, clearBtn, copyBtn }, onSend) {
+export function initConsole({ log, form, input, handle, drawer, clearBtn, copyBtn, dlBtn, dlMode }, onSend) {
   const history = []; let hIdx = -1;
-  const entries = [];
+  const entries = [];   // { t, type: 'tx'|'rx'|'note'|'err', text }
+  const stampNow = () => new Date().toISOString().slice(11, 23);
 
   function scroll() { log.scrollTop = log.scrollHeight; }
   function trim() { while (log.childElementCount > MAX_ENTRIES) log.firstChild.remove(); }
 
   function line(text, cls) {
     const el = document.createElement('div'); if (cls) el.className = cls; el.textContent = text;
-    log.appendChild(el); entries.push(text); trim(); scroll();
+    log.appendChild(el); entries.push({ t: stampNow(), type: cls === 'tx' ? 'tx' : cls === 'err' ? 'err' : 'note', text }); trim(); scroll();
   }
   /** A multi-line reply: shows the first N lines with a toggle for the rest. */
   function reply(body, meta) {
@@ -30,7 +31,7 @@ export function initConsole({ log, form, input, handle, drawer, clearBtn, copyBt
       wrap.append(head, tog, rest);
     }
     if (meta && meta.ms != null) { const m = document.createElement('span'); m.className = 'dim'; m.textContent = `  (${meta.ms.toFixed(0)} ms, ${lines.length} line${lines.length === 1 ? '' : 's'})`; wrap.appendChild(m); }
-    log.appendChild(wrap); entries.push(body); trim(); scroll();
+    log.appendChild(wrap); entries.push({ t: stampNow(), type: 'rx', text: body }); trim(); scroll();
   }
 
   form.addEventListener('submit', e => {
@@ -43,6 +44,17 @@ export function initConsole({ log, form, input, handle, drawer, clearBtn, copyBt
     else if (e.key === 'ArrowDown') { e.preventDefault(); if (hIdx > 0) { hIdx--; input.value = history[hIdx]; } else { hIdx = -1; input.value = ''; } }
   });
   clearBtn.addEventListener('click', () => { log.innerHTML = ''; entries.length = 0; });
+  // Download the session's console as text. Mode: commands only, or commands + replies.
+  dlBtn.addEventListener('click', () => {
+    const mode = dlMode.value;
+    const lines = [];
+    for (const e of entries) {
+      if (e.type === 'tx') lines.push(`${e.t}  ${e.text}`);
+      else if (mode === 'full' && (e.type === 'rx' || e.type === 'err')) lines.push(e.text.split('\n').map(l => `${e.t}      ${l}`).join('\n'));
+    }
+    const name = `nanovna-console-${mode}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
   copyBtn.addEventListener('click', async () => { try { await navigator.clipboard.writeText(log.innerText); copyBtn.textContent = 'Copied'; setTimeout(() => copyBtn.textContent = 'Copy', 1200); } catch { line('clipboard unavailable', 'err'); } });
 
   // drag to resize

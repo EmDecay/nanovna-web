@@ -22,6 +22,7 @@
   --accent-2:#4573d4;
   --field:   #0f1318;
   --held:    #6c7784;
+  --overlay: #b58cf5;   /* loaded .s1p comparison */
   --marker:  #ffffff;
   --ok: #43b05c; --warn: #e0a634; --err: #e45a50;
 }
@@ -40,6 +41,7 @@
   --accent-2:#244ea8;
   --field:   #ffffff;
   --held:    #8a94a1;
+  --overlay: #7c3fd6;
   --marker:  #1a2028;
   --ok: #2f8a3f; --warn: #b8700a; --err: #c2342a;
 }

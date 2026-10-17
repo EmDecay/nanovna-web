@@ -3,7 +3,7 @@
 import { nearestIndex } from '../rf.js';
 import { drawMarkerGlyph, cssVar } from './common.js';
 
-export function renderSmith(ctx, W, H, sweep, held, markers, hover, z0) {
+export function renderSmith(ctx, W, H, sweep, held, markers, hover, z0, overlay) {
   const R = Math.min(W, H) / 2 - 26, cx = W / 2, cy = H / 2;
   const gx = (re, im) => [cx + re * R, cy - im * R];
   ctx.font = '12px ' + cssVar('--font'); ctx.lineWidth = 1; ctx.strokeStyle = cssVar('--grid');
@@ -23,6 +23,7 @@ export function renderSmith(ctx, W, H, sweep, held, markers, hover, z0) {
     for (let i = 0; i < s.pts; i++) { const [x, y] = gx(s.s11[2 * i], s.s11[2 * i + 1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
     ctx.stroke(); ctx.setLineDash([]);
   };
+  if (overlay) trace(overlay, cssVar('--overlay'), [2, 3]);
   if (held) trace(held, cssVar('--held'), [5, 4]);
   trace(sweep, cssVar('--s11'), []);
   const [x0, y0] = gx(sweep.s11[0], sweep.s11[1]);

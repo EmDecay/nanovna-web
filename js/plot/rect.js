@@ -11,7 +11,7 @@ export const VIEWS = {
 };
 
 /** Draw one rectangular view. Returns a geometry object for hit-testing. */
-export function renderRect(ctx, W, H, view, sweep, held, markers, hover) {
+export function renderRect(ctx, W, H, view, sweep, held, markers, hover, overlay) {
   const V = VIEWS[view];
   const pad = { l: 58, r: 16, t: 14, b: 40 }, pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   let [y0, y1] = V.range;
@@ -35,11 +35,18 @@ export function renderRect(ctx, W, H, view, sweep, held, markers, hover) {
   ctx.strokeStyle = cssVar('--axis'); ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
   ctx.save(); ctx.translate(14, pad.t + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(V.label, 0, 0); ctx.restore();
 
+  // an overlay may cover a different span: draw only the part inside the axis
+  const traceAny = (s, col, dash) => {
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath(); let pen = false;
+    for (let i = 0; i < s.pts; i++) { if (s.f[i] < sweep.start || s.f[i] > sweep.stop) { pen = false; continue; } const x = sx(s.f[i]), y = sy(V.y(s, i)); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; }
+    ctx.stroke(); ctx.setLineDash([]);
+  };
   const trace = (s, col, dash) => {
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath();
     for (let i = 0; i < s.pts; i++) { const x = sx(s.f[i]), y = sy(V.y(s, i)); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
     ctx.stroke(); ctx.setLineDash([]);
   };
+  if (overlay) traceAny(overlay, cssVar('--overlay'), [2, 3]);
   if (held && held.start === sweep.start && held.stop === sweep.stop) trace(held, cssVar('--held'), [5, 4]);
   trace(sweep, cssVar('--' + V.trace), []);
 

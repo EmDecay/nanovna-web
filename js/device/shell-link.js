@@ -39,9 +39,9 @@ export class ShellLink {
   async _flush() { await new Promise(r => setTimeout(r, 15)); this._take(); }
 
   /** Send a command; resolve with { body, raw, ms }. body has echo and prompts removed. */
-  async command(cmd, { timeoutMs = 6000, settleMs = 40 } = {}) {
+  async command(cmd, { timeoutMs = 6000, settleMs = 40, quiet = false } = {}) {
     await this._flush();
-    if (this.onTx) this.onTx(cmd);
+    if (this.onTx && !quiet) this.onTx(cmd);
     const t0 = performance.now();
     await this._write(cmd + '\r\n');
     let last = performance.now();
@@ -57,7 +57,7 @@ export class ShellLink {
     const raw = this._text(this._take());
     const ms = performance.now() - t0;
     const body = ShellLink.strip(raw, cmd);
-    if (this.onRx) this.onRx(body, { ms, raw });
+    if (this.onRx && !quiet) this.onRx(body, { ms, raw });
     return { body, raw, ms };
   }
 

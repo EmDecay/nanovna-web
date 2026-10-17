@@ -8,9 +8,10 @@ export function initSidebar(root) {
   function open(name) {
     current = name;
     for (const s of sections) { const on = s.dataset.section === name; s.classList.toggle('open', on); s.querySelector('h2 button').setAttribute('aria-expanded', String(on)); }
-    try { localStorage.setItem(KEY, name); } catch {}
+    try { localStorage.setItem(KEY, name || ''); } catch {}
   }
-  for (const s of sections) s.querySelector('h2 button').addEventListener('click', () => open(s.dataset.section));
+  // clicking the open section's header collapses it (the "−")
+  for (const s of sections) s.querySelector('h2 button').addEventListener('click', () => open(current === s.dataset.section ? null : s.dataset.section));
   open(sections.some(s => s.dataset.section === current) ? current : sections[0].dataset.section);
   return { open };
 }

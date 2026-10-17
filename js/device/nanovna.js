@@ -54,7 +54,7 @@ export class NanoVNA {
    * Validates the point count; retries once; returns null if the device
    * never produced a complete reply (the robust-acquisition-loop pattern).
    */
-  async scan(start, stop, pts, { retries = 1 } = {}) {
+  async scan(start, stop, pts, { retries = 1, quiet = false } = {}) {
     const m = this.env;
     start = Math.round(Math.min(Math.max(start, m.minHz), m.maxHz));
     stop = Math.round(Math.min(Math.max(stop, m.minHz), m.maxHz));
@@ -63,7 +63,7 @@ export class NanoVNA {
     const cmd = `scan ${start} ${stop} ${pts} 7`;
     let last = null;
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const r = await this.link.command(cmd, { timeoutMs: 15000 });
+      const r = await this.link.command(cmd, { timeoutMs: 15000, quiet });
       const parsed = NanoVNA.parseScan(r.body, pts);
       if (parsed) return { ...parsed, pts, start, stop, t: Date.now(), ms: r.ms, cmd };
       last = { lines: r.body.split('\n').filter(Boolean).length, expected: pts, attempt };
@@ -88,6 +88,38 @@ export class NanoVNA {
   async recall(slot) { return this.link.command(`recall ${slot}`, { timeoutMs: 5000 }); }
   /** save never returns a prompt on the F V2 (confirmed in nvnapython). */
   async save(slot) { return this.link.commandNoPrompt(`save ${slot}`, 1500); }
+
+  // ---- single frequency ----------------------------------------------------
+  /** cwfreq {kHz}: put the device in CW at one frequency (its own screen). */
+  async cwfreq(hz) { return this.link.command(`cwfreq ${Math.round(hz / 1e3)}`, { timeoutMs: 3000 }); }
+  /** One-point measurement for the CW meter: a tiny 11-point scan, averaged. */
+  async measureAt(hz) {
+    const pts = 11, span = 1e3;
+    const sw = await this.scan(hz, hz + span, pts, { retries: 0, quiet: true });
+    const avg = arr => { let re = 0, im = 0; for (let i = 0; i < pts; i++) { re += arr[2 * i]; im += arr[2 * i + 1]; } return [re / pts, im / pts]; };
+    return { f: hz, s11: avg(sw.s11), s21: avg(sw.s21), ms: sw.ms };
+  }
+
+  // ---- markers / traces on the device -------------------------------------
+  /** marker N idx — move device marker N (1-4) to sweep point idx; marker N off. */
+  async marker(n, idxOrOff) { return this.link.command(`marker ${n} ${idxOrOff}`, { timeoutMs: 3000 }); }
+  /** trace N fmt — set a device trace's display format (logmag, smith, swr, phase, …). */
+  async trace(n, fmt) { return this.link.command(`trace ${n} ${fmt}`, { timeoutMs: 3000 }); }
+
+  // ---- calibration extras ---------------------------------------------------
+  /** edelay [value]: get or set electrical delay. Value is passed straight through. */
+  async edelay(v) { const r = await this.link.command(v == null ? 'edelay' : `edelay ${v}`, { timeoutMs: 3000 }); return r.body.trim(); }
+
+  // ---- display / UI -----------------------------------------------------------
+  /** beep on|off — nvnapython beep_time() does on, wait, off. */
+  async beep(on) { return this.link.command(`beep ${on ? 'on' : 'off'}`, { timeoutMs: 2000 }); }
+  async beepFor(ms = 80) { await this.beep(true); await new Promise(r => setTimeout(r, ms)); await this.beep(false); }
+  /** pwm 0.0–1.0 — screen brightness. */
+  async pwm(v) { return this.link.command(`pwm ${Math.min(1, Math.max(0, v)).toFixed(2)}`, { timeoutMs: 2000 }); }
+  async resolution() { const r = await this.link.command('resolution', { timeoutMs: 3000 }); return r.body.trim(); }
+  /** touchcal / touchtest — need the user at the device screen. */
+  async touchCal() { return this.link.command('touchcal', { timeoutMs: 60000 }); }
+  async touchTest() { return this.link.command('touchtest', { timeoutMs: 60000 }); }
 
   // ---- screen -------------------------------------------------------------
   /** Grab the framebuffer. Returns { width, height, rgba: Uint8ClampedArray, ms }. */

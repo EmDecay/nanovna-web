@@ -12,6 +12,8 @@ export class DemoLink extends ShellLink {
     this.sweepStart = 50e3; this.sweepStop = 900e6; this.sweepPts = 101;
     this.f0 = 433e6;            // first resonance of the simulated antenna
     this.paused = false;
+    this.calOn = false; this.edelayVal = '0'; this.beepOn = false; this.pwmVal = '1.00';
+    this.markers = {}; this.traces = {};
   }
   async open() {}
   info() { return 'demo'; }
@@ -56,6 +58,18 @@ export class DemoLink extends ShellLink {
       case 'help': body = 'Commands: version info SN help sweep frequencies data scan pause resume cal save recall capture'; break;
       case 'pause': this.paused = true; break;
       case 'resume': this.paused = false; break;
+      case 'cal': { const a0 = (a[0] || '').toLowerCase(); if (a0 === 'on') this.calOn = true; else if (a0 === 'off' || a0 === 'reset') this.calOn = false; else if (!a0) body = `cal: ${this.calOn ? 'on' : 'off'}`; delay = ['open', 'short', 'load', 'thru', 'done'].includes(a0) ? 400 : 8; break; }
+      case 'save': { const bytes = this.enc.encode(cmd + '\r\n'); setTimeout(() => this._feed(bytes), 8); return Promise.resolve(); }   // echo only, no prompt (F V2 quirk)
+      case 'recall': break;
+      case 'edelay': if (a.length) this.edelayVal = a[0]; else body = this.edelayVal; break;
+      case 'cwfreq': if (!a.length) body = 'usage: cwfreq {frequency(KHz)}'; break;
+      case 'beep': this.beepOn = (a[0] || '').toLowerCase() === 'on'; break;
+      case 'pwm': this.pwmVal = a[0] || this.pwmVal; break;
+      case 'resolution': body = '800,480'; break;
+      case 'touchcal': body = 'touch calibration: tap the targets on the device screen (simulated)'; delay = 600; break;
+      case 'touchtest': body = 'touch test running (simulated)'; delay = 600; break;
+      case 'marker': if (a.length >= 2) this.markers[a[0]] = a[1]; else body = Object.entries(this.markers).map(([k, v]) => `${k} ${v}`).join('\n'); break;
+      case 'trace': if (a.length >= 2) this.traces[a[0]] = a[1]; else body = Object.entries(this.traces).map(([k, v]) => `${k} ${v}`).join('\n'); break;
       case 'sweep':
         if (a.length >= 2) { this.sweepStart = +a[0]; this.sweepStop = +a[1]; if (a[2]) this.sweepPts = +a[2]; }
         else body = `${this.sweepStart} ${this.sweepStop} ${this.sweepPts}`;
