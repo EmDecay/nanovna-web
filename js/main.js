@@ -276,7 +276,7 @@ async function loadSession() {
     const d = parseSession(await file.text());
     if (d.sweep) acceptSweep(d.sweep); state.held = d.held || null; $('holdBtn').setAttribute('aria-pressed', String(!!state.held));
     state.markers = Array.isArray(d.markers) ? d.markers.slice(0, settings.maxMarkers) : [];
-    if (d.settings) { Object.assign(settings, sanitizeSettings(d.settings)); saveSettings(); applyTheme(); state.lut = buildLut(settings.palette); }
+    if (d.settings) { Object.assign(settings, sanitizeSettings(d.settings)); saveSettings(); applyTheme(); settingsPanel.refresh(); state.lut = buildLut(settings.palette); }
     setOverlay(d.overlay || null); renderMarkers(); buildLegend(); chart.dirty = true;
     con.dim(`session loaded: ${file.name} (${d.when || 'no date'})`);
   } catch (e) { con.err('session: ' + e.message); }
@@ -318,7 +318,7 @@ $('sessLoad').addEventListener('click', loadSession);
 $('ovlLoad').addEventListener('click', loadOverlay);
 $('ovlClear').addEventListener('click', () => setOverlay(null));
 $('ptsCustom').addEventListener('focus', () => { document.querySelector('input[name=pts][value=custom]').checked = true; });
-initSettingsPanel($('settingsForm'), key => {
+const settingsPanel = initSettingsPanel($('settingsForm'), key => {
   if (key === 'palette') state.lut = buildLut(settings.palette);
   if (key === 'z0') renderMarkers();
   if (key === 'brightness' && state.vna && !state.busy) state.vna.pwm(settings.brightness).catch(e => con.err('pwm: ' + e.message));

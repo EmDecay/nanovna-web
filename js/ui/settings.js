@@ -51,7 +51,11 @@ export function applyTheme() {
   root.setAttribute('data-traces', settings.traces);
 }
 
-/** Wire the settings form. onChange(key) is called after any change. */
+/**
+ * Wire the settings form. onChange(key) is called after any change.
+ * Returns { refresh } so the form can be re-synced after settings change
+ * elsewhere (e.g. a loaded session file).
+ */
 export function initSettingsPanel(form, onChange) {
   const sel = form.querySelector('[name=palette]');
   sel.innerHTML = Object.entries(PALETTES).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join('');
@@ -79,4 +83,5 @@ export function initSettingsPanel(form, onChange) {
     save(); applyTheme(); swatch.style.background = cssGradient(settings.palette); onChange(n);
   });
   form.addEventListener('submit', e => e.preventDefault());
+  return { refresh };
 }
